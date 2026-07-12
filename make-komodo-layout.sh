@@ -41,6 +41,19 @@ if [ -d "$ROOT/mozilla/build/moz3500-ko12.10/mozilla/ko-rel/dist/bin/icons" ]; t
     copy_tree "$ROOT/mozilla/build/moz3500-ko12.10/mozilla/ko-rel/dist/bin/icons" "$OUT/share/icons"
 fi
 
+# The actual application icons (komodo16/32/48/64/128/256.edit.png) come
+# from Komodo's own top-level "bk build" output (build/release/main/),
+# not from the Mozilla ko-rel tree -- install_desktop_entry expects them
+# as share/icons/komodoNN.png (no ".edit" product-type infix).
+if [ -d "$ROOT/build/release/main" ]; then
+    mkdir -p "$OUT/share/icons"
+    for f in "$ROOT"/build/release/main/komodo*.edit.png; do
+        [ -f "$f" ] || continue
+        base=$(basename "$f")
+        cp -aL "$f" "$OUT/share/icons/$(echo "$base" | sed 's/\.edit\././')"
+    done
+fi
+
 # The siloed Python's "relocatable" build leaves some extension modules
 # (and libpython itself) with a hardcoded absolute RPATH pointing back at
 # the build-tree ko-rel/dist/lib, instead of a portable $ORIGIN-relative
