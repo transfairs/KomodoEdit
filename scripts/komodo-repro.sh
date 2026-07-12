@@ -165,7 +165,7 @@ run_deps() {
     build-essential pkg-config yasm autoconf2.13 \
     libgtk2.0-dev libdbus-glib-1-dev libasound2-dev libpulse-dev libxt-dev \
     libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev \
-    libffi-dev libncursesw5-dev xz-utils tk-dev
+    libffi-dev libncursesw5-dev xz-utils tk-dev patchelf
 
   bootstrap_python2
   setup_build_env
