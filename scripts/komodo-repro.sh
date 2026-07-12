@@ -9,8 +9,8 @@ PY2_EXE="$PY2_PREFIX/bin/python2.7"
 PY2_SRC_DIR="$CACHE_BASE/src/Python-2.7.18"
 PY2_TARBALL="$CACHE_BASE/src/Python-2.7.18.tgz"
 PY2_URL="https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz"
-MOZ_SRC_TARBALL_URL_DEFAULT="https://github.com/transfairs/komodo-edit-mozilla35-src/releases/download/mozilla-35.0-ko12.10-v1/mozilla-35.0-ko12.10-FIREFOX_35_0_RELEASE-patched-src.tar.gz"
-MOZ_SRC_TARBALL_SHA256_DEFAULT="b1b44f4737b62ef447b79fe0026ed1ca2ee7fce25f3a763dd4de14b2ef13ff2f"
+MOZ_SRC_TARBALL_URL_DEFAULT="https://github.com/transfairs/komodo-edit-mozilla35-src/releases/download/mozilla-35.0-ko12.10-v4/mozilla-35.0-ko12.10-FIREFOX_35_0_RELEASE-patched-src-v4.tar.gz"
+MOZ_SRC_TARBALL_SHA256_DEFAULT="7988f91b38e42921ace3a5bcc2aea6573894e3a4adb89ad00f74209e42b2c5cd"
 MOZ_SRC_TARBALL_CACHE="$CACHE_BASE/src/mozilla-35.0-ko12.10-patched-src.tar.gz"
 
 usage() {
@@ -228,12 +228,24 @@ mozSrcType = 'tarball'
 mozSrcTarball = '$MOZ_SRC_TARBALL_CACHE'
 EOF
     fi
+    # The pre-patched tarball already has every mozilla/patches-new/ patch
+    # baked in, but patchtree.py's "already applied" detection is not
+    # reliable for every patch (e.g. multi-file/new-file patches), so
+    # re-running the patch/patch_pyxpcom/patch_komodo targets against it
+    # can fail on hunks that are already satisfied. Skip straight to the
+    # post-patch targets in that case; only re-patch when actually
+    # fetching unpatched source from hg.mozilla.org.
+    if [[ "${KOMODO_USE_HG_SRC:-0}" == "1" ]]; then
+      local moz_targets="all"
+    else
+      local moz_targets="src src_pyxpcom configure_mozilla mozilla pyxpcom silo_python regmozbuild"
+    fi
     if [[ "${KOMODO_MOZILLA_CLEAN:-0}" == "1" ]]; then
-      log "Running full Mozilla rebuild (distclean all)"
-      "$PY2_EXE" build.py distclean all
+      log "Running full Mozilla rebuild (distclean $moz_targets)"
+      "$PY2_EXE" build.py distclean $moz_targets
     else
       log "Building Mozilla"
-      "$PY2_EXE" build.py all
+      "$PY2_EXE" build.py $moz_targets
     fi
     popd >/dev/null
   else

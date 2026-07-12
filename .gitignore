@@ -2,6 +2,7 @@
 *.pyo
 /bkconfig.*
 /mozilla/build/
+/mozilla/*.tar.gz
 /mozilla/config.py
 /mozilla/config-*.py
 /mozilla/d/

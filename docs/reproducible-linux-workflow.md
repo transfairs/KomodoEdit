@@ -70,8 +70,13 @@ KOMODO_PY2_CFLAGS='-std=gnu17' ./scripts/komodo-repro.sh deps
 Mozilla source: by default, `build` fetches a pre-patched Mozilla 35.0
 source snapshot from a GitHub release
 ([transfairs/komodo-edit-mozilla35-src](https://github.com/transfairs/komodo-edit-mozilla35-src)),
-so builds no longer depend on `hg.mozilla.org` staying online. To use the
-original Mercurial-based fetch instead:
+so builds no longer depend on `hg.mozilla.org` staying online. Since that
+snapshot already has every `mozilla/patches-new/` patch applied, the
+`patch`/`patch_pyxpcom`/`patch_komodo` build.py targets are skipped in
+this mode (re-running them against already-applied patches is unreliable
+for some multi-file patches). Patches are only (re-)applied when fetching
+unpatched source from Mercurial via `KOMODO_USE_HG_SRC=1` below. To use
+the original Mercurial-based fetch instead:
 
 ```bash
 KOMODO_USE_HG_SRC=1 ./scripts/komodo-repro.sh build
