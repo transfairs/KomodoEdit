@@ -1181,6 +1181,13 @@ class UnsiloedPythonExe(black.configure.Datum):
 
     def _Determine_Do(self):
         self.applicable = 1
+        forced = os.environ.get("KOMODO_UNSILOED_PYTHON_EXE")
+        if forced:
+            forced = os.path.abspath(os.path.normpath(forced))
+            if os.path.isfile(forced):
+                self.value = forced
+                self.determined = 1
+                return
         # We are already running python; it's perfectly clear which one we want
         self.value = sys.executable
         self.determined = 1
@@ -1875,6 +1882,29 @@ class SetLdLibraryPath(black.configure.SetPathEnvVar):
             self.applicable = 1
             self.value = []
             #---- add required entries to the path
+            # Put the *unsiloed* Python's own lib dir first. The unsiloed
+            # Python (the interpreter actually running this build, e.g.
+            # komodo-repro's siloed-from-the-*host* Python 2.7 build) and
+            # the Mozilla-embedded Python below it can be different,
+            # ABI-incompatible builds (e.g. differing on whether
+            # weakref's _remove_dead_weakref or PySlice_Unpack exist). If
+            # the Mozilla one comes first in LD_LIBRARY_PATH, the unsiloed
+            # interpreter links against Mozilla's libpython2.7.so instead
+            # of its own and crashes on stdlib imports at the first ABI
+            # divergence between the two builds.
+            if sys.platform.startswith("linux"):
+                unsiloedPythonExe = black.configure.items["unsiloedPythonExe"].Get()
+                unsiloedPythonLibPath = join(dirname(dirname(unsiloedPythonExe)), "lib")
+                if not self.Contains(unsiloedPythonLibPath):
+                    self.value.append(unsiloedPythonLibPath)
+            # Add the siloed Python lib dir (in the install tree) for
+            # installer builds so that Python extensions (like our build
+            # of sgmlop) can be built against it.
+            if sys.platform.startswith("linux"):
+                pythonExecutable = black.configure.items["siloedPython"].Get()
+                pythonLibPath = join(dirname(dirname(pythonExecutable)), "lib")
+                if not self.Contains(pythonLibPath):
+                    self.value.append(pythonLibPath)
             # add the Mozilla bin directory
             # (This is only needed on Mac to let bk test find the dependent
             # libraries for the _xpcom Python module)
@@ -1886,14 +1916,6 @@ class SetLdLibraryPath(black.configure.SetPathEnvVar):
 ##XXX
 ##XXX Is this necessary with the new build system now?
 ##XXX
-            # Add the siloed Python lib dir (in the install tree) for
-            # installer builds so that Python extensions (like our build
-            # of sgmlop) can be built against it.
-            if sys.platform.startswith("linux"):
-                pythonExecutable = black.configure.items["siloedPython"].Get()
-                pythonLibPath = join(dirname(dirname(pythonExecutable)), "lib")
-                if not self.Contains(pythonLibPath):
-                    self.value.append(pythonLibPath)
         else:
             self.applicable = 0
         self.determined = 1
@@ -2659,13 +2681,21 @@ class SourceId(black.configure.Datum):
 
     def _Determine_Do(self):
         self.applicable = 1
-        cmd = 'svnversion "%s"' % dirname(__file__)
+        scc_type = black.configure.items["sccType"].Get()
+        if scc_type == "git":
+            cmd = 'git -C "%s" rev-parse --short HEAD' % dirname(__file__)
+        elif scc_type == "hg":
+            cmd = 'hg --cwd "%s" id -i' % dirname(__file__)
+        else:
+            cmd = 'svnversion "%s"' % dirname(__file__)
         o = os.popen(cmd)
         stdout = o.read()
         retval = o.close()
         if retval:
-            raise black.configure.ConfigureError(
-                "error running '%s'" % cmd)
+            sys.stderr.write("configure: warning: could not determine source id via '%s', using empty fallback\n" % cmd)
+            self.value = ""
+            self.determined = 1
+            return
         self.value = stdout.strip()
         self.determined = 1
 

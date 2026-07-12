@@ -159,7 +159,9 @@ use moz bindings with CSS to acheive everything we have here.
                 if (cls.indexOf("icon-") === 0)
                 {
                     setTimeout(function() {
-                        this.button.classList.add(cls);
+                var button = document.getAnonymousElementByAttribute(this, "anonid", "button");
+                if (button)
+                  button.classList.add(cls);
                     }.bind(this), 0);
                     
                     break;
@@ -192,7 +194,9 @@ use moz bindings with CSS to acheive everything we have here.
                 if (cls.indexOf("icon-") === 0)
                 {
                     setTimeout(function() {
-                        this["icon-box"].classList.add(cls);
+                var iconBox = document.getAnonymousElementByAttribute(this, "anonid", "toolbarbutton-icon-box");
+                if (iconBox)
+                  iconBox.classList.add(cls);
                     }.bind(this), 0);
 
                     break;

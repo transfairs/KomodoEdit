@@ -11,6 +11,11 @@ function koResolve()
     const { NetUtil }   = Cu.import("resource://gre/modules/NetUtil.jsm", {});
     const { Services }  =   Cu.import("resource://gre/modules/Services.jsm", {});
 
+    var fallbackLog = {
+        debug: function() {},
+        error: function(message) { dump("[koResolve:error] " + message + "\n"); }
+    };
+
     var loggingSvc, log;
     var nsIChromeReg;
 
@@ -32,9 +37,14 @@ function koResolve()
             }
 
             // Init Services
-            loggingSvc = Cc["@activestate.com/koLoggingService;1"].
-                            getService(Ci.koILoggingService);
-            log        = loggingSvc.getLogger('koResolve');
+            try {
+                loggingSvc = Cc["@activestate.com/koLoggingService;1"].
+                                getService(Ci.koILoggingService);
+                log = loggingSvc.getLogger('koResolve');
+            } catch (ex) {
+                dump("*** koResolve using fallback logger: " + ex + "\n");
+                log = fallbackLog;
+            }
 
             nsIChromeReg = Cc['@mozilla.org/chrome/chrome-registry;1']
                                     .getService(Ci["nsIChromeRegistry"]);

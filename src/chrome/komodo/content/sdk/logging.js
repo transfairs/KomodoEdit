@@ -19,14 +19,56 @@ if (typeof(require) === "function") {
     // This is being loaded in a JS component or a JS module; export a "logging"
     // object with the desired API.
     var { classes: Cc, interfaces: Ci, utils: Cu } = Components;
-    // Note that Cu.getGlobalForObject({}) gives us the wrong global...
-    this.EXPORTED_SYMBOLS = ["logging"];
+    if (!("EXPORTED_SYMBOLS" in this))
+        this.EXPORTED_SYMBOLS = ["logging"];
     this.logging = this.exports = {};
 }
 
 var _gLoggingMgr = null;
 var _gSeenDeprectatedMsg = {};
 var _gLoggers = {};
+
+const FallbackLogger = function(logger_name) {
+    this._logger_name = logger_name;
+    this.level = LOG_NOTSET;
+};
+
+FallbackLogger.prototype = {
+    setLevel: function(level) {
+        this.level = level;
+    },
+    getEffectiveLevel: function() {
+        return this.level;
+    },
+    isEnabledFor: function(level) {
+        return level >= this.level;
+    },
+    _emit: function(level, message) {
+        dump("[fallback-" + level + "] " + this._logger_name + ": " + message + "\n");
+    },
+    debug: function(message) { this._emit("debug", message); },
+    info: function(message) { this._emit("info", message); },
+    warn: function(message) { this._emit("warn", message); },
+    warning: function(message) { this.warn(message); },
+    error: function(message) { this._emit("error", message); },
+    critical: function(message) { this._emit("critical", message); },
+    exception: function(exception, message) {
+        this._emit("exception", (message || "") + (exception ? (": " + exception) : ""));
+    }
+};
+
+const FallbackLoggingService = function() {
+    this._loggers = {};
+};
+
+FallbackLoggingService.prototype = {
+    getLogger: function(logger_name) {
+        if (!(logger_name in this._loggers)) {
+            this._loggers[logger_name] = new FallbackLogger(logger_name);
+        }
+        return this._loggers[logger_name];
+    }
+};
 
 /**
  * Logging level - none
@@ -119,8 +161,13 @@ Logger.prototype = {
 
 const LoggingMgr = exports.LoggingMgr = function() {
     this.LoggerMap = {}
-    this.loggingSvc = Cc["@activestate.com/koLoggingService;1"]
-                        .getService(Ci.koILoggingService);
+    try {
+        this.loggingSvc = Cc["@activestate.com/koLoggingService;1"]
+                            .getService(Ci.koILoggingService);
+    } catch (ex) {
+        dump("*** Falling back to JS logger: " + ex + "\n");
+        this.loggingSvc = new FallbackLoggingService();
+    }
 
     this.getLogger = function(logger_name) {
         if (!(logger_name in this.LoggerMap)) {

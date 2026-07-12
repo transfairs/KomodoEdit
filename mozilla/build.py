@@ -121,12 +121,22 @@ import pprint
 import time
 import glob
 import urllib
-import urllib2
+try:
+    import urllib2
+except ImportError:
+    # Python 3: provide urllib2 as alias to urllib.request
+    import urllib.request as urllib2
 import string
 import types
 import logging
 import subprocess
 import json
+try:
+    import importlib.util
+    _HAVE_IMPORTLIB_UTIL = True
+except ImportError:
+    import imp
+    _HAVE_IMPORTLIB_UTIL = False
 
 sys.path.insert(0, join(dirname(__file__), "..", "util"))
 import which
@@ -142,25 +152,37 @@ del sys.path[0]
 class BuildError(Exception):
     pass
 
+
+def _parse_numeric_version(ver):
+    return tuple(int(p) for p in re.findall(r"\d+", str(ver)))
+
+
+def _version_lt(left, right):
+    return _parse_numeric_version(left) < _parse_numeric_version(right)
+
 def _getChangeNum():
     # Note that this can be a fairly complex string (perhaps not
     # suitable for inclusion in a filename if ':' is in it). See
     # "svnversion --help" for details.
     up_one_dir = dirname(dirname(abspath(__file__)))
-    changestr = _capture_output('svnversion "%s"' % up_one_dir).strip()
+    try:
+        changestr = _capture_output('svnversion "%s"' % up_one_dir).strip()
+    except OSError:
+        # Building from a checkout/archive without svn tooling is supported.
+        return 0
 
     if changestr == "exported":
         changestr = 0  # fallback
     try:
         changenum = int(changestr)
-    except ValueError, ex:
+    except ValueError as ex:
         # pull off front number (good enough for our purposes)
         try:
-            changenum = int(re.match("(\d+)", changestr).group(1))
+            changenum = int(re.match(r"(\d+)", changestr).group(1))
             log.warn("simplifying complex changenum from 'svnversion': %s -> %s"
                      " (see `svnversion --help` for details)",
                      changestr, changenum)
-        except AttributeError, ex:
+        except AttributeError as ex:
             changenum = 0
             log.warn("Failed to get changenum, using 0 instead")
     return changenum
@@ -176,6 +198,7 @@ gPlat2BinDir = {
     'win32': os.path.abspath('bin-win32'),
     'sunos5': os.path.abspath('bin-solaris-sun'),
     'linux2': os.path.abspath('bin-linux-x86'),
+    'linux': os.path.abspath('bin-linux-x86'),
     'hp-uxB': os.path.abspath('bin-hpux'),
     'darwin': os.path.abspath('bin-darwin'),
     'freebsd6': os.path.abspath('bin-freebsd-x86'),
@@ -253,13 +276,12 @@ def _run_in_dir(cmd, cwd, logstream=_RUN_DEFAULT_LOGSTREAM):
 
 
 def _importConfig():
-    import imp
-    f = open(gConfigFileName)
-    try:
-        config = imp.load_source("config", gConfigFileName, f)
-    finally:
-        f.close()
-    return config
+    if _HAVE_IMPORTLIB_UTIL:
+        spec = importlib.util.spec_from_file_location("config", gConfigFileName)
+        config = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config)
+        return config
+    return imp.load_source("config", gConfigFileName)
 
 def _validateEnv():
     """Setup (if able) and ensure that the environment is appropriate
@@ -403,7 +425,7 @@ def _getAutoconfVersion(autoconf=None):
     #
     #   Autoconf version 2.12
     #
-    patterns = [re.compile("\d+\.\d+")]
+    patterns = [re.compile(r"\d+\.\d+")]
     for pattern in patterns:
         match = pattern.search(firstline)
         if match:
@@ -492,6 +514,7 @@ def _setupMozillaEnv():
         os.environ["PATH"] = join(autoconfPrefix, "bin") + os.pathsep + os.environ["PATH"]
         os.environ["AC_MACRODIR"] = join(autoconfPrefix, "share", "autoconf")
         autoconf = which.which("autoconf")
+        os.environ["AUTOCONF"] = autoconf
         autoconfVer = _getAutoconfVersion(autoconf)
         if autoconfVer > (2, 13):
             verStr = '.'.join([str(i) for i in autoconfVer])
@@ -505,6 +528,13 @@ def _setupMozillaEnv():
         if "zsh" in os.environ.get("SHELL", ""):
             log.info("shell: zsh detected, replacing SHELL environment with bash")
             os.environ["SHELL"] = "/bin/bash"
+
+        # Legacy Mozilla sources can fail configure checks with modern GCC
+        # defaulting to newer C standards (e.g. C23 implicit-int hard errors).
+        if sys.platform.startswith("linux"):
+            cflags = os.environ.get("CFLAGS", "")
+            if "-std=" not in cflags:
+                os.environ["CFLAGS"] = (cflags + " -std=gnu89").strip()
 
     # Check for Centos 6, and add appropriate LDFLAGS.
     if sys.platform == "linux" and exists("/etc/redhat-release"):
@@ -737,9 +767,11 @@ def _dedentlines(lines, tabsize=8, skip_first_line=False):
     lines list is modified **in-place**.
     """
     DEBUG = False
-    if DEBUG: 
-        print "dedent: dedent(..., tabsize=%d, skip_first_line=%r)"\
-              % (tabsize, skip_first_line)
+    if DEBUG:
+        print(
+            "dedent: dedent(..., tabsize=%d, skip_first_line=%r)" %
+            (tabsize, skip_first_line)
+        )
     indents = []
     margin = None
     for i, line in enumerate(lines):
@@ -756,12 +788,14 @@ def _dedentlines(lines, tabsize=8, skip_first_line=False):
                 break
         else:
             continue # skip all-whitespace lines
-        if DEBUG: print "dedent: indent=%d: %r" % (indent, line)
+        if DEBUG:
+            print("dedent: indent=%d: %r" % (indent, line))
         if margin is None:
             margin = indent
         else:
             margin = min(margin, indent)
-    if DEBUG: print "dedent: margin=%r" % margin
+    if DEBUG:
+        print("dedent: margin=%r" % margin)
 
     if margin is not None and margin > 0:
         for i, line in enumerate(lines):
@@ -773,7 +807,8 @@ def _dedentlines(lines, tabsize=8, skip_first_line=False):
                 elif ch == '\t':
                     removed += tabsize - (removed % tabsize)
                 elif ch in '\r\n':
-                    if DEBUG: print "dedent: %r: EOL -> strip up to EOL" % line
+                    if DEBUG:
+                        print("dedent: %r: EOL -> strip up to EOL" % line)
                     lines[i] = lines[i][j:]
                     break
                 else:
@@ -781,8 +816,10 @@ def _dedentlines(lines, tabsize=8, skip_first_line=False):
                                      "line %r while removing %d-space margin"
                                      % (ch, line, margin))
                 if DEBUG:
-                    print "dedent: %r: %r -> removed %d/%d"\
-                          % (line, ch, removed, margin)
+                    print(
+                        "dedent: %r: %r -> removed %d/%d" %
+                        (line, ch, removed, margin)
+                    )
                 if removed == margin:
                     lines[i] = lines[i][j+1:]
                     break
@@ -1016,10 +1053,12 @@ def target_configure(argv):
 
     mozBuildOptions = []
     if sys.platform.startswith("linux"):
-        # Avoid having a dependency on libstdc++
-        mozBuildOptions.append('enable-stdcxx-compat')
+        # --enable-stdcxx-compat no longer builds with modern libstdc++
+        # (e.g. GCC 15 / Ubuntu 26.04), so keep it disabled by default.
         # Disable gstreamer.
         mozBuildOptions.append('disable-gstreamer')
+        # sys/sysctl.h is removed on modern Linux, which breaks mozjemalloc.
+        mozBuildOptions.append('disable-jemalloc')
 
     mozMakeOptions = []
     mozBuildExtensions = []
@@ -1049,7 +1088,7 @@ def target_configure(argv):
              "p4-changenum=",
              "compiler=", "gcc=", "gxx=",
              "moz-objdir="])
-    except getopt.GetoptError, msg:
+    except getopt.GetoptError as msg:
         raise BuildError("configure: %s" % str(msg))
 
     for opt, optarg in optlist:
@@ -1078,7 +1117,7 @@ def target_configure(argv):
         elif opt == "--no-mar":
             config["enableMar"] = False
         elif opt in ("-k", "--komodo-version"):
-            if not re.match("^\d+\.\d+$", optarg):
+            if not re.match(r"^\d+\.\d+$", optarg):
                 raise BuildError("illegal value for --komodo-version, it "\
                                  "must be of the form #.#: %r" % optarg)
             config["komodoVersion"] = optarg
@@ -1217,8 +1256,7 @@ def target_configure(argv):
         if osx_major_ver >= 10: # aka Snow Leopard or greater
             if is_gcc:
                 version = version_string.split(" ")[2]
-                from distutils.version import LooseVersion
-                if LooseVersion(version) < "4.2":
+                if _version_lt(version, "4.2"):
                     raise BuildError("GCC 4.2 or higher is required, " \
                                      "you have GCC %s, please install a " \
                                      "newer version." \
@@ -1244,8 +1282,7 @@ def target_configure(argv):
             gcc = which.which("gcc")
             gxx = which.which("g++")
         version = _capture_output("%s --version" % (gcc,)).split(" ")[2]
-        from distutils.version import LooseVersion
-        if LooseVersion(version) < "4.2":
+        if _version_lt(version, "4.2"):
             machine = _capture_output("%s -dumpmachine" % (gcc,)).split("-")[0]
             if machine == "x86_64":
                 error = "GCC 4.2 or higher is required due to visibility-" \
@@ -1309,47 +1346,54 @@ def target_configure(argv):
                 buildName = config["platform"]
             prebuiltDir = join("prebuilt", "python%s" % config["pyVer"],
                                buildName)
+            prebuiltZip = prebuiltDir + ".zip"
 
-            # If the dirs exists and is out-of-date: remove it.
-            mtime_zip = os.stat(prebuiltDir+".zip").st_mtime
-            if exists(prebuiltDir) \
-               and os.stat(prebuiltDir).st_mtime < mtime_zip:
-                log.info("removing out of date unzip of prebuilt python "
-                         "in `%s'", prebuiltDir)
-                if sys.platform == "win32":
-                    _run('rd /s/q "%s"' % prebuiltDir)
-                else:
-                    _run('rm -rf "%s"' % prebuiltDir)
+            # Modern local environments may not have legacy prebuilt Python 2 zips.
+            # Fall back to the current interpreter to keep configure runnable.
+            if not exists(prebuiltZip):
+                config["python"] = abspath(sys.executable)
+                config["pyVer"] = "%d.%d" % sys.version_info[:2]
+                config["pythonVersion"] = config["pyVer"]
+                log.warn("prebuilt Python zip doesn't exist: %s; using current interpreter: %s",
+                         prebuiltZip, config["python"])
+            else:
+                # If the dirs exists and is out-of-date: remove it.
+                mtime_zip = os.stat(prebuiltZip).st_mtime
+                if exists(prebuiltDir) \
+                   and os.stat(prebuiltDir).st_mtime < mtime_zip:
+                    log.info("removing out of date unzip of prebuilt python "
+                             "in `%s'", prebuiltDir)
+                    if sys.platform == "win32":
+                        _run('rd /s/q "%s"' % prebuiltDir)
+                    else:
+                        _run('rm -rf "%s"' % prebuiltDir)
 
-            # If the dir doesn't exist then we need to crack it there.
-            if not exists(prebuiltDir):
-                log.info("unzipping prebuilt python in `%s'", prebuiltDir)
-                prebuiltZip = prebuiltDir + ".zip"
-                if not exists(prebuiltZip):
-                    raise BuildError("prebuilt Python zip doesn't exist: %s"
-                                     % prebuiltZip)
-                _run_in_dir("unzip -q -d %s %s"
-                            % (basename(prebuiltDir), basename(prebuiltZip)),
-                            dirname(prebuiltDir), log.debug)
+                # If the dir doesn't exist then we need to crack it there.
+                if not exists(prebuiltDir):
+                    log.info("unzipping prebuilt python in `%s'", prebuiltDir)
+                    _run_in_dir("unzip -q -d %s %s"
+                                % (basename(prebuiltDir), basename(prebuiltZip)),
+                                dirname(prebuiltDir), log.debug)
         else:
             raise BuildError("unexpected value for 'pythonVersion' "
                              "(a.k.a. --python-version): %r"
                              % config["pythonVersion"])
 
         # Find the Python binary under here.
-        if sys.platform == "win32":
-            if config["buildType"] == "debug":
-                pythonExe = join(prebuiltDir, "python_d.exe")
+        if config["python"] is None:
+            if sys.platform == "win32":
+                if config["buildType"] == "debug":
+                    pythonExe = join(prebuiltDir, "python_d.exe")
+                else:
+                    pythonExe = join(prebuiltDir, "python.exe")
+            elif sys.platform == "darwin":
+                # we can link against a release version of the python framework just fine
+                pattern = join(prebuiltDir, "Python.framework", "Versions", 
+                               "?.?", "bin", "python")
+                pythonExe = glob.glob(pattern)[0]
             else:
-                pythonExe = join(prebuiltDir, "python.exe")
-        elif sys.platform == "darwin":
-            # we can link against a release version of the python framework just fine
-            pattern = join(prebuiltDir, "Python.framework", "Versions", 
-                           "?.?", "bin", "python")
-            pythonExe = glob.glob(pattern)[0]
-        else:
-            pythonExe = join(prebuiltDir, "bin", "python")
-        config["python"] = abspath(pythonExe)
+                pythonExe = join(prebuiltDir, "bin", "python")
+            config["python"] = abspath(pythonExe)
 
     # Validate options: some combinations don't make sense.
     if config["buildTag"] is not None and config["srcTreeName"] is not None:
@@ -1482,7 +1526,7 @@ the following when all paths involved *do* exist:
 
 Currently the longest known sub-path in the Mozilla tree is:
 
-    %%MOZ_OBJDIR%%\%s
+    %%MOZ_OBJDIR%%\\%s
     (length %s)
 
 which means that your MOZ_OBJDIR cannot be any longer than %s
@@ -1540,8 +1584,7 @@ You need to do one or more of the following to work around this problem
 # See "build -h configure" for details.
 
 """)
-    items = config.items()
-    items.sort()
+    items = sorted(config.items())
     for name, value in items:
         #XXX Might need to do some type checking here to ensure
         #    serialization will work.
@@ -1684,8 +1727,27 @@ def target_silo_python(argv=["silo_python"]):
             landmark = None
     else:
         landmark = os.path.join(siloDir, "bin", "python")
+    # On Linux, a later Mozilla install/packaging step can regenerate
+    # `dist/bin` from scratch, wiping the libpythonX.Y.so this function
+    # copies there (see below) without touching `siloDir` itself. If
+    # that happens, `landmark` alone still looks "already siloed" and
+    # this function would wrongly skip re-copying/re-linking the shared
+    # library into `dist/bin`, leaving a dangling `dist/lib/libpythonX.Y.so
+    # -> ../bin/libpythonX.Y.so` symlink. Treat that as un-siloed too.
+    mozbin_landmark = None
+    if not sys.platform.startswith("win") and sys.platform != "darwin":
+        libpythonSoVer = ("libpython%s.so.1" % config.pyVer
+                          if config.platinfo["os"] == "freebsd"
+                          else "libpython%s.so.1.0" % config.pyVer)
+        if exists(join(siloDir, "lib", libpythonSoVer)):
+            mozbin_landmark = join(mozBinDir, libpythonSoVer)
     if landmark and exists(landmark):
-        if argv and argv[0] == "--force":
+        if mozbin_landmark is not None and not exists(mozbin_landmark):
+            log.info("siloed Python at `%s' exists but `%s' is missing "
+                     "(likely wiped by a later Mozilla install step); "
+                     "re-siloing", siloDir, mozbin_landmark)
+            shutil.rmtree(siloDir)
+        elif argv and argv[0] == "--force":
             argv = argv[1:]
             shutil.rmtree(siloDir)
         else:
@@ -1764,8 +1826,25 @@ def target_silo_python(argv=["silo_python"]):
         else:
             libpythonSoVer = "libpython%s.so.1.0" % config.pyVer
         libpythonSo = "libpython%s.so" % config.pyVer
-        _run('cp -f %s/lib/%s %s' % (siloDir, libpythonSoVer, mozBinDir),
-             log.info)
+        libpythonSrc = join(siloDir, "lib", libpythonSoVer)
+        has_shared_libpython = exists(libpythonSrc)
+        # Clear out any dangling libpythonX.Y.so* left behind by a prior,
+        # partial silo attempt (e.g. this run's own mozBinDir copy got
+        # wiped by a later Mozilla install step, but mozLibDir/libpythonSo
+        # -- a symlink into mozBinDir -- was never cleaned up). Below,
+        # activestate.py's relocation walks the whole dist tree and
+        # open()s every file it finds; a dangling symlink here makes that
+        # walk fail outright before it even gets to what it's meant to
+        # patch.
+        for stale in (join(mozBinDir, libpythonSoVer), join(mozBinDir, libpythonSo),
+                      join(mozLibDir, libpythonSo)):
+            if os.path.islink(stale) and not exists(stale):
+                log.info("removing dangling `%s'", stale)
+                os.unlink(stale)
+        if has_shared_libpython:
+            _run('cp -f %s %s' % (libpythonSrc, mozBinDir), log.info)
+        else:
+            log.warn("shared libpython not found at '%s'; continuing with static Python", libpythonSrc)
 
         # Relocate the Python install.
         if pyver >= (2,5): # when APy's activestate.py supported relocation
@@ -1776,18 +1855,22 @@ def target_silo_python(argv=["silo_python"]):
                 activestate_py_path = join(siloDir, "lib",
                                            "python"+config.pyVer,
                                            "activestate.py")
-            cmd = "%s %s --relocate" % (config.python, activestate_py_path)
-            _run(cmd, log.info)
+            if exists(activestate_py_path):
+                cmd = "%s %s --relocate" % (config.python, activestate_py_path)
+                _run(cmd, log.info)
+            else:
+                log.warn("activestate.py not found in siloed Python; skipping relocation")
 
         # Create a bunch of symlinks.  Note that relocating will force copy
         # everything (and they will no longer be symlinks), so do this after
         # relocating.
 
-        mozbinPythonSoPath = join(mozBinDir, libpythonSo)
-        _run('ln -s ./%s %s' % (libpythonSoVer, mozbinPythonSoPath), log.info)
-        # Also symlink into the lib dir, to aid in linking - bug 95668.
-        mozlibPythonSoPath = join(mozLibDir, libpythonSo)
-        _run('ln -s ../bin/%s %s' % (libpythonSo, mozlibPythonSoPath), log.info)
+        if has_shared_libpython:
+            mozbinPythonSoPath = join(mozBinDir, libpythonSo)
+            _run('ln -s ./%s %s' % (libpythonSoVer, mozbinPythonSoPath), log.info)
+            # Also symlink into the lib dir, to aid in linking - bug 95668.
+            mozlibPythonSoPath = join(mozLibDir, libpythonSo)
+            _run('ln -s ../bin/%s %s' % (libpythonSo, mozlibPythonSoPath), log.info)
 
         # Need a mozpython executable in the mozBin dir for "bk start mozpython"
         # to work with PyXPCOM -- for testing, etc.
@@ -1823,17 +1906,46 @@ def target_src_pyxpcom(argv=["src_pyxpcom"]):
     pyxpcom_src_dir = join(config.buildDir, config.srcTreeName, "mozilla",
                            "extensions", "python")
     if not exists(pyxpcom_src_dir):
-        # Checkout pyxpcom - ensure we use the matching version to mozilla.
-        repo_url = "http://hg.mozilla.org/pyxpcom/"
-        repo_rev = None
-        if int(config.mozVer) <= 31:
-            # Requires the matching branch.
-            repo_rev = "TAG_MOZILLA_%d" % (int(config.mozVer), )
-        cmd = "hg clone"
-        if repo_rev is not None:
-            cmd += " -r %s" % (repo_rev, )
-        cmd += " %s python" % (repo_url, )
-        _run_in_dir(cmd, dirname(pyxpcom_src_dir), log.info)
+        # Prefer vendored sources to keep PyXPCOM builds reproducible offline.
+        vendored_pyxpcom_dir = os.path.normpath(join(dirname(__file__), "..", "contrib", "pyxpcom"))
+        if exists(vendored_pyxpcom_dir):
+            if not exists(dirname(pyxpcom_src_dir)):
+                os.makedirs(dirname(pyxpcom_src_dir))
+            shutil.copytree(vendored_pyxpcom_dir, pyxpcom_src_dir)
+            log.info("using vendored PyXPCOM sources from '%s'", vendored_pyxpcom_dir)
+        else:
+            repo_rev = None
+            if int(config.mozVer) <= 31:
+                # Requires the matching branch/tag.
+                repo_rev = "TAG_MOZILLA_%d" % (int(config.mozVer), )
+
+            clone_attempts = []
+            git_repo_url = "https://github.com/thereisonlyxul/pyxpcom.git"
+            git_cmd = "git clone --depth 1"
+            if repo_rev is not None:
+                git_cmd += " --branch %s" % (repo_rev, )
+            git_cmd += " %s python" % (git_repo_url, )
+            clone_attempts.append(("git", git_cmd))
+
+            # Legacy upstream location (now often unavailable).
+            hg_repo_url = "https://hg.mozilla.org/pyxpcom/"
+            hg_cmd = "hg clone"
+            if repo_rev is not None:
+                hg_cmd += " -r %s" % (repo_rev, )
+            hg_cmd += " %s python" % (hg_repo_url, )
+            clone_attempts.append(("hg", hg_cmd))
+
+            last_error = None
+            for clone_type, cmd in clone_attempts:
+                try:
+                    log.info("attempting %s checkout for PyXPCOM", clone_type)
+                    _run_in_dir(cmd, dirname(pyxpcom_src_dir), log.info)
+                    break
+                except Exception, ex:
+                    last_error = ex
+                    log.warn("%s checkout for PyXPCOM failed: %s", clone_type, ex)
+            else:
+                raise last_error
     return argv[1:]
 
 def target_patch_pyxpcom(argv=["patch_pyxpcom"]):
@@ -1860,11 +1972,30 @@ def target_pyxpcom(argv=["pyxpcom"]):
             # If something failed - we nuke the pyxpcom src dir, as we don't
             # know if it's in a working state!
             if exists(pyxpcom_src_dir):
-                shutil.rmtree()
+                shutil.rmtree(pyxpcom_src_dir)
             raise
 
     assert exists(pyxpcom_src_dir), "Pyxpcom source directory does not exist:" \
                                     "%r" % (pyxpcom_src_dir, )
+
+    # Some archived PyXPCOM source snapshots do not include build/hcc + build/hcpp
+    # wrappers that old configure logic expects. Provide minimal passthrough wrappers
+    # so configure can run on modern systems and offline-vendored sources.
+    build_dir = join(pyxpcom_src_dir, "build")
+    if not exists(build_dir):
+        os.makedirs(build_dir)
+    wrapper_src = (
+        "#!/bin/sh\n"
+        "compiler=$1\n"
+        "shift\n"
+        "# Old configure logic may pass quoted compiler tokens like '/usr/bin/g++'.\n"
+        "compiler=`echo \"$compiler\" | tr -d \"'\\\"\"`\n"
+        "exec \"$compiler\" \"$@\"\n"
+    )
+    for wrapper_name in ("hcc", "hcpp"):
+        wrapper_path = join(build_dir, wrapper_name)
+        file(wrapper_path, "w").write(wrapper_src)
+        os.chmod(wrapper_path, 0755)
 
     # Run the autoconf to generate the configure script.
     cmds = []
@@ -1884,7 +2015,13 @@ def target_pyxpcom(argv=["pyxpcom"]):
     pyxpcom_obj_dir = join(moz_obj_dir, "extensions", "python")
     if not exists(pyxpcom_obj_dir):
         os.makedirs(pyxpcom_obj_dir)
-    configure_flags = 'PYTHON="%s"' % (_unix_path_from_path(config.python), )
+    configure_flags = 'PYTHON="%s" ac_cv_static_assertion_macros_work=yes' % (
+        _unix_path_from_path(config.python), )
+    python_prefix = dirname(dirname(config.python))
+    python_libdir = join(python_prefix, "lib")
+    if exists(python_libdir):
+        configure_flags += ' MOZ_PYTHON_LIBDIR="%s"' % (
+            _unix_path_from_path(python_libdir), )
     configure_options = []
     if sys.platform.startswith("linux"):
         configure_flags += " ac_cv_visibility_pragma=no"
@@ -2072,7 +2209,22 @@ def target_src(argv=["src"]):
         os.makedirs(buildDir)
 
     if mozSrcType == "hg":
-        supportDir = os.path.abspath("support")
+        try:
+            which.which("hg")
+        except which.WhichError:
+            local_hg = abspath(join(dirname(__file__), "..", ".venv-hg", "bin", "hg"))
+            if exists(local_hg):
+                hg_bin_dir = dirname(local_hg)
+                os.environ["PATH"] = hg_bin_dir + os.pathsep + os.environ.get("PATH", "")
+                log.warning("'hg' not found on PATH; using local Mercurial at %s", local_hg)
+            else:
+                log.warning("'hg' not found on PATH; falling back to git checkout for source retrieval")
+                mozSrcType = "git"
+                if not hasattr(config, "mozSrcGitRev") or not config.mozSrcGitRev:
+                    config.mozSrcGitRev = str(config.mozVer)
+
+    if mozSrcType == "hg":
+        supportDir = os.path.abspath(join(dirname(__file__), "support"))
         try:
             sys.path.append(supportDir)
             from get_mozilla_tree import getTreeFromVersion, getRepoFromTree, fixRemoteRepo
@@ -2113,10 +2265,28 @@ def target_src(argv=["src"]):
         else:
             bundleURL = getMozURL()
 
-        _run("wget -t 5 -T 30 --progress=dot:mega -O %s %s" % (bundleFile, bundleURL), log.info)
-        _run("hg init %s" % (hgRepo,), log.info)
-        _run("hg --cwd %s unbundle %s" % (hgRepo, bundleFile), log.info)
-        os.unlink(bundleFile)
+        _run("wget -c -t 5 -T 30 --progress=dot:mega -O %s %s" % (bundleFile, bundleURL), log.info)
+        if not exists(join(hgRepo, ".hg")):
+            if exists(hgRepo):
+                raise BuildError("existing source path is not a Mercurial repo: %s" % hgRepo)
+            _run("hg init %s" % (hgRepo,), log.info)
+        else:
+            log.info("reusing existing Mercurial repo at '%s'", hgRepo)
+
+        unbundle_status = _capture_status(["hg", "--cwd", hgRepo, "unbundle", bundleFile])
+        if unbundle_status != 0:
+            log.warning("'hg unbundle' returned %s, continuing with pull", unbundle_status)
+        if exists(bundleFile):
+            try:
+                os.unlink(bundleFile)
+            except OSError:
+                # Another process may have removed the temporary bundle between
+                # exists() and unlink(); continue with pull in that case.
+                if exists(bundleFile):
+                    raise
+                log.warning("bundle file already missing, skipping cleanup: %s", bundleFile)
+        else:
+            log.warning("bundle file already missing, skipping cleanup: %s", bundleFile)
         fixRemoteRepo(treeName, hgRepo)
         _run("hg --cwd %s pull" % (hgRepo,), log.info)
         if hgTag:
@@ -2124,48 +2294,67 @@ def target_src(argv=["src"]):
 
     elif mozSrcType == "git":
         srcRepo = os.path.join(buildDir, "mozilla")
-        _run("git clone --no-checkout --progress -- git://github.com/mozilla/mozilla-central.git \"%s\"" % (srcRepo,))
+        if exists(srcRepo):
+            if not exists(join(srcRepo, ".git")):
+                raise BuildError("existing source path is not a git repo: %s" % srcRepo)
+            _run_in_dir("git remote set-url origin https://github.com/mozilla/mozilla-central.git", srcRepo)
+            _run_in_dir("git fetch --tags --progress origin", srcRepo)
+        else:
+            _run("git clone --no-checkout --progress -- https://github.com/mozilla/mozilla-central.git \"%s\"" % (srcRepo,))
         _run_in_dir("git fetch --tags", srcRepo)
         tags = _capture_output("git --git-dir=\"%s/.git\" tag -l" % (srcRepo,)).splitlines()
         if config.mozSrcGitRev in tags:
             branch = config.mozSrcGitRev
-        elif config.mozSrcGitRev.translate(None, "0123456789") == "":
-            from distutils.version import LooseVersion, StrictVersion
+        elif re.match(r"^[0-9.]+$", str(config.mozSrcGitRev)):
             versions = []
             for tag in tags:
                 if not (tag.startswith("FIREFOX_") and tag.endswith("_RELEASE")):
                     continue
-                version = LooseVersion(".".join(tag.split("_")[1:-1]))
-                if version.version[-2] in ("a", "b"):
-                    continue # skip alphas and betas
-                versions.append(version)
-            lastVerMajor = max(versions).version[0]
-            targetVer = LooseVersion(".".join(map(str, [int(config.mozVer),
-                                                        int(config.mozVer * 10 % 10),
-                                                        int(config.mozVer * 100 % 10)])))
-            if lastVerMajor >= targetVer.version[0]:
-                if not targetVer in versions and targetVer.version[-1] == 0:
+                parts = tag.split("_")[1:-1]
+                if not parts or not all(p.isdigit() for p in parts):
+                    continue
+                versions.append(tuple(int(p) for p in parts))
+            if not versions:
+                raise BuildError("Can't determine Firefox release tags from git repository")
+            lastVerMajor = max(v[0] for v in versions)
+            targetVer = tuple(int(p) for p in str(config.mozVer).split(".") if p.isdigit())
+            if not targetVer:
+                raise BuildError("invalid Mozilla version: %r" % (config.mozVer,))
+            if lastVerMajor >= targetVer[0]:
+                wanted = targetVer
+                if wanted not in versions and len(wanted) >= 2 and wanted[-1] == 0:
                     # try without the last part, for x.0 vs x.0.0
-                    targetVer = LooseVersion(targetVer.vstring.rsplit(".", 1)[0])
-                if not targetVer in versions:
+                    wanted = wanted[:-1]
+                if wanted not in versions:
                     raise BuildError("Can't find version %s" % (config.mozVer,))
-                branch = "FIREFOX_%s_RELEASE" % (targetVer.vstring.replace(".", "_"),)
+                branch = "FIREFOX_%s_RELEASE" % ("_".join(map(str, wanted)),)
             else:
-                for branch in ("beta", "aurora", "master"):
-                    milestone = _capture_output("git --git-dir=\"%s/.git\" show "
-                                                "origin/%s:config/milestone.txt" %
-                                                (srcRepo, branch))
+                for branch in ("mozilla-beta", "mozilla-aurora", "main", "master", "beta", "aurora"):
+                    try:
+                        milestone = _capture_output("git --git-dir=\"%s/.git\" show "
+                                                    "origin/%s:config/milestone.txt" %
+                                                    (srcRepo, branch))
+                    except OSError:
+                        continue
                     for line in milestone.splitlines():
                         if (line.lstrip() + "#").startswith("#"):
                             continue # empty or comment
                         break
                     else:
                         continue
-                    version = LooseVersion(line.strip())
-                    if version.version[0] == targetVer.version[0]:
+                    version = _parse_numeric_version(line.strip())
+                    if version and version[0] == targetVer[0]:
                         break
                 else:
-                    raise BuildError("Can't find branch for %s" % targetVer)
+                    for candidate in ("main", "master"):
+                        status = _capture_status(["git", "--git-dir=%s/.git" % srcRepo,
+                                                  "show-ref", "--verify",
+                                                  "refs/remotes/origin/%s" % candidate])
+                        if status == 0:
+                            branch = candidate
+                            break
+                    else:
+                        raise BuildError("Can't find branch for %s" % (config.mozVer,))
         else:
             raise BuildError("unknown git version \"%s\"" % (config.mozSrcGitRev,))
         _run_in_dir("git checkout %s" % (branch,), srcRepo)
@@ -2249,6 +2438,63 @@ def _unix_path_from_path(path):
     return path.replace(os.sep, "/")
 
 
+def _get_python_version_tuple(python_exe):
+    """Return (major, minor) for the given Python executable, or None."""
+    try:
+        out = _capture_output('"%s" -c "import sys; print(\'%%d.%%d\' %% sys.version_info[:2])"'
+                              % (python_exe,), capture_stderr=True).strip()
+    except OSError:
+        return None
+    parts = out.split(".")
+    if len(parts) != 2:
+        return None
+    try:
+        return (int(parts[0]), int(parts[1]))
+    except ValueError:
+        return None
+
+
+def _get_mach_python(config):
+    """Pick a Python interpreter compatible with this legacy mach.
+
+    Mozilla 35-era mach requires Python 2.x and refuses Python 3.
+    """
+    repo_root = dirname(dirname(abspath(__file__)))
+    candidates = []
+    if getattr(config, "python", None):
+        candidates.append(config.python)
+    candidates.extend([
+        join(repo_root, ".py2", "bin", "python2.7"),
+        join(repo_root, ".py2", "bin", "python2"),
+    ])
+
+    for exe_name in ("python2.7", "python2", "python"):
+        try:
+            candidates.append(which.which(exe_name))
+        except which.WhichError:
+            pass
+
+    seen = set()
+    for candidate in candidates:
+        if not candidate:
+            continue
+        candidate = abspath(candidate)
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if not exists(candidate):
+            continue
+        ver = _get_python_version_tuple(candidate)
+        if ver is None:
+            continue
+        if ver[0] == 2 and ver >= (2, 7):
+            return candidate
+
+    raise BuildError("Could not find a Python 2.7+ interpreter for mach. "
+                     "Expected legacy Mozilla mach to run under Python 2. "
+                     "Tried config.python, local '.py2/bin/python2.7', and PATH.")
+
+
 def _get_exe_path(cmd):
     """Get an appropriate full path to the named command.
     
@@ -2259,8 +2505,19 @@ def _get_exe_path(cmd):
             return join(os.environ["MOZILLABUILD"], "msys", "local", "bin",
                         "autoconf-2.13")
         else:
-            return abspath(join("support", "autoconf-2.13", "bin",
-                                "autoconf"))
+            candidates = [
+                abspath(join(dirname(__file__), "support", "autoconf-2.13", "bin", "autoconf")),
+                abspath(join("support", "autoconf-2.13", "bin", "autoconf")),
+            ]
+            for candidate in candidates:
+                if exists(candidate):
+                    return candidate
+            for fallback in ("autoconf2.13", "autoconf"):
+                try:
+                    return which.which(fallback)
+                except which.WhichError:
+                    pass
+            return candidates[0]
     else:
         return which.which(cmd)
 
@@ -2281,10 +2538,11 @@ def target_configure_mozilla(argv=["configure_mozilla"]):
     buildDir = os.path.join(config.buildDir, config.srcTreeName, "mozilla")
     
     # Bail if source isn't there.
-    landmark = os.path.join(buildDir, "client.mk")
-    if not os.path.exists(landmark):
-        raise BuildError("There is no mozilla source at '%s'. (landmark='%s')"\
-                         % (buildDir, landmark))
+    landmark_clientmk = os.path.join(buildDir, "client.mk")
+    landmark_mach = os.path.join(buildDir, "mach")
+    if not (os.path.exists(landmark_clientmk) or os.path.exists(landmark_mach)):
+        raise BuildError("There is no mozilla source at '%s'. (landmark='%s' or '%s')"\
+                         % (buildDir, landmark_clientmk, landmark_mach))
 
     # get the moz version
     extensions = config.mozBuildExtensions
@@ -2315,9 +2573,11 @@ def target_configure_mozilla(argv=["configure_mozilla"]):
 
     # Add komodo build dir to .hgignore file.
     hgignore_filepath = join(buildDir, ".hgignore")
-    contents = file(hgignore_filepath).read()
+    with open(hgignore_filepath, "r") as fin:
+        contents = fin.read()
     entry = "^" + config.mozObjDir + "/*"
-    file(hgignore_filepath, "w").write(contents + "\n" + entry + "\n")
+    with open(hgignore_filepath, "w") as fout:
+        fout.write(contents + "\n" + entry + "\n")
 
     return argv[1:]
 
@@ -2335,16 +2595,23 @@ def target_mozilla(argv=["mozilla"]):
     config = _importConfig()
     _setupMozillaEnv()
     buildDir = os.path.join(config.buildDir, config.srcTreeName, "mozilla")
-    native_objdir = _get_mozilla_objdir(convert_to_native_win_path=True)
 
     # Bail if source isn't there.
-    landmark = os.path.join(buildDir, "client.mk")
-    if not os.path.exists(landmark):
-        raise BuildError("There is no mozilla source at '%s'. (landmark='%s')"\
-                         % (buildDir, landmark))
+    landmark_clientmk = os.path.join(buildDir, "client.mk")
+    landmark_mach = os.path.join(buildDir, "mach")
+    if not (os.path.exists(landmark_clientmk) or os.path.exists(landmark_mach)):
+        raise BuildError("There is no mozilla source at '%s'. (landmark='%s' or '%s')"\
+                         % (buildDir, landmark_clientmk, landmark_mach))
+
+    komodo_build_mk = os.path.join(buildDir, "komodo", "build.mk")
+    if not os.path.exists(komodo_build_mk):
+        log.info("Komodo overlay missing at '%s'; applying patch_komodo", komodo_build_mk)
+        target_patch_komodo()
 
     _validatePython(config)
 
+    if len(argv) > 1:
+        native_objdir = _get_mozilla_objdir(convert_to_native_win_path=True)
     if len(argv) > 1 and os.path.isdir(os.path.join(native_objdir, argv[1])):
         # Build in a specific mozilla subdirectory.
         targetDir = os.path.join(native_objdir, argv[1])
@@ -2353,9 +2620,12 @@ def target_mozilla(argv=["mozilla"]):
 
     else:
         # New enough to use mach
+        mach_python = _get_mach_python(config)
+        mach_python_dir = dirname(mach_python)
+        os.environ["PATH"] = mach_python_dir + os.pathsep + os.environ.get("PATH", "")
         # Make sure mach has the state directory working
         try:
-            _run_in_dir("python mach mach-commands", buildDir, log.info)
+            _run_in_dir('"%s" mach mach-commands' % mach_python, buildDir, log.info)
         except OSError:
             pass # mach errors out on first run, that's okay
 
@@ -2372,8 +2642,8 @@ def target_mozilla(argv=["mozilla"]):
         #_run_in_dir("python mach --log-file %s configure %s" %
         #                (join(buildDir, "mach.log"), build_args),
         #            buildDir, log.info)
-        _run_in_dir("python mach --log-file %s build %s" %
-                        (join(buildDir, "mach.log"), build_args),
+        _run_in_dir('"%s" mach --log-file %s build %s' %
+                        (mach_python, join(buildDir, "mach.log"), build_args),
                     buildDir, log.info)
 
     if int(config.mozVer) >= 35 and sys.platform.startswith("darwin"):
@@ -2388,6 +2658,11 @@ def target_mozilla(argv=["mozilla"]):
             shutil.move(binDepPath, resDepPath)
 
         argv = argv[1:]
+
+    # Consume the 'mozilla' target itself when we performed a full build.
+    if argv and argv[0] == "mozilla":
+        argv = argv[1:]
+
     return argv
 
 def target_symbols(argv=["symbols"]):
@@ -2419,10 +2694,17 @@ def target_komodoapp_distclean(argv=["komodoapp_distclean"]):
 def target_komodoapp(argv=["komodoapp"]):
     """add the komodo bits and build them"""
     config = _importConfig()
+    buildDir = os.path.join(config.buildDir, config.srcTreeName, "mozilla")
+    mach_python = _get_mach_python(config)
+    os.environ["PATH"] = dirname(mach_python) + os.pathsep + os.environ.get("PATH", "")
+    # Legacy autoconf conftests use implicit-int main(); GCC15 treats this as
+    # an error under the current warning setup during configure.
+    os.environ["CFLAGS"] = (os.environ.get("CFLAGS", "") +
+                             " -Wno-error=implicit-int").strip()
     target_patch(patch_target='komodoapp', logFilename="__patchlog_komodoapp__.py")
     topsrcdir = os.path.join(config.buildDir, config.srcTreeName, "mozilla")
     log.info("building komodo app")
-    _run_in_dir("python mach --log-file %s build komodo" % (join(buildDir, "mach.log")),
+    _run_in_dir('"%s" mach --log-file %s build' % (mach_python, join(buildDir, "mach.log")),
                 topsrcdir, log.info)
     return argv[1:]
 
@@ -2480,8 +2762,26 @@ def target_patch(argv=["patch"], patch_target="mozilla", logFilename=None,
                  srcSubDir=None):
     """patch the mozilla source"""
     config = _importConfig()
+
+    normalized_patch_dirs = []
+    for patch_spec in config.patchesDirs:
+        if exists(patch_spec):
+            normalized_patch_dirs.append(patch_spec)
+            continue
+        if isabs(patch_spec):
+            normalized_patch_dirs.append(patch_spec)
+            continue
+        mozilla_rel = abspath(join(dirname(__file__), patch_spec))
+        repo_rel = abspath(join(dirname(dirname(__file__)), patch_spec))
+        if exists(mozilla_rel):
+            normalized_patch_dirs.append(mozilla_rel)
+        elif exists(repo_rel):
+            normalized_patch_dirs.append(repo_rel)
+        else:
+            normalized_patch_dirs.append(patch_spec)
+
     log.info("target: patch %s from %r",
-             patch_target, config.patchesDirs)
+             patch_target, normalized_patch_dirs)
 
     srcDir = join(config.buildDir, config.srcTreeName, "mozilla")
     if srcSubDir is not None:
@@ -2508,7 +2808,7 @@ def target_patch(argv=["patch"], patch_target="mozilla", logFilename=None,
     # Temporarily add a patch target, which we'll remove when done patching.
     config.patch_target = patch_target
     try:
-        patchtree.patch(config.patchesDirs,
+        patchtree.patch(normalized_patch_dirs,
                         srcDir,
                         config=config,
                         #dryRun=1,  # uncomment this line to dry-run patching
@@ -2709,9 +3009,11 @@ def _capture_output(cmd, capture_stderr=False):
         stderr = None
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr, shell=True)
     output = p.stdout.read()
-    retval = p.returncode
+    retval = p.wait()
     if retval:
         raise OSError("error capturing output of `%s': %r" % (cmd, retval))
+    if isinstance(output, bytes):
+        output = output.decode('utf-8', errors='replace')
     return output
 
 def _capture_status(argv):
@@ -2725,7 +3027,7 @@ def _capture_status(argv):
         # WindowsError: [Error 2] The system cannot find the file specified
         return -1
 
-_remote_path_re = re.compile("(\w+@)?\w+:/(?!/)")
+_remote_path_re = re.compile(r"(\w+@)?\w+:/(?!/)")
 def is_remote_path(rpath):
     return _remote_path_re.search(rpath) is not None
 
@@ -2775,7 +3077,7 @@ def build(argv):
         target = argv[0]
         try:
             targetFunc = getattr(sys.modules[__name__], 'target_' + target)
-        except AttributeError, e:
+        except AttributeError as e:
             log.error("no '%s' (function target_%s()) target exists"\
                       % (target, target))
             return 1
@@ -2783,7 +3085,7 @@ def build(argv):
         # Run the target.
         try:
             newArgv = targetFunc(argv)
-        except BuildError, ex:
+        except BuildError as ex:
             log.error("%s: %s", target, str(ex))
             if log.isEnabledFor(logging.DEBUG):
                 print
@@ -2808,15 +3110,15 @@ def _helpOnTargets(targets):
     for target in targets:
         try:
             targetFunc = getattr(sys.modules[__name__], 'target_' + target)
-        except AttributeError, e:
-            log.error("no '%s' (function target_%s()) target exists"\
-                      % (target, target))
+        except AttributeError as e:
+            log.error("no '%s' (function target_%s()) target exists" %
+                      (target, target))
             return 1
         doc = targetFunc.__doc__
         if doc:
-            print target+" -- "+doc
+            print(target + " -- " + doc)
         else:
-            print "No help for target '%s'." % target
+            print("No help for target '%s'." % target)
 
 
 def _listTargets():
@@ -2860,14 +3162,13 @@ def _listTargets():
                 grouped[title] = [target]
     for memberList in grouped.values(): memberList.sort()
     groups = []
-    titles = groupMap.values()
-    titles.sort()
+    titles = sorted(groupMap.values())
 
-    print "                    Mozilla-devel BUILD TARGETS"
-    print "                    ==========================="
+    print("                    Mozilla-devel BUILD TARGETS")
+    print("                    ===========================")
     for order, title in titles:
         if title not in grouped: continue
-        print '\n' + title + ':'
+        print('\n' + title + ':')
         #XXX long form output
         #for target in grouped[title]:
         #    print "  %-20s" % target
@@ -2882,7 +3183,7 @@ def _listTargets():
                 doc = doc.splitlines()[0]
             if len(doc) > 53:
                 doc = doc[:50] + "..."
-            print "  %-20s  %s" % (target, doc)
+            print("  %-20s  %s" % (target, doc))
 
 
 # Recipe: pretty_logging (0.1) in C:\trentm\tm\recipes\cookbook
@@ -2932,7 +3233,7 @@ def main(argv):
     try:
         optlist, args = getopt.getopt(argv[1:], "htvf:c:",
             ["help", "targets", "verbose", "config"])
-    except getopt.GetoptError, msg:
+    except getopt.GetoptError as msg:
         log.error(str(msg))
         log.error("Your invocation was: %s. Try 'build --help'.\n" % argv)
         return 1

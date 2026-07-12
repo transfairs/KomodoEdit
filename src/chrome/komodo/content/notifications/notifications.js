@@ -45,8 +45,8 @@ const Cr = Components.results;
 const Cu = Components.utils;
 const CE = Components.Exception;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
+const {XPCOMUtils} = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {});
+const {Services} = Cu.import("resource://gre/modules/Services.jsm", {});
 
 /**
  * Notification Manager Wrapper
@@ -223,12 +223,16 @@ function KoNotificationManagerWrapper_remove(aNotification) {
 
 KoNotificationManagerWrapper.prototype.addListener =
 function KoNotificationManagerWrapper_addListener(aListener) {
-  this._nm.addListener(aListener);
+  Cc["@activestate.com/koNotification/manager;1"]
+    .getService(Ci.koINotificationManager)
+    .addListener(aListener);
 };
 
 KoNotificationManagerWrapper.prototype.removeListener =
 function KoNotificationManagerWrapper_removeListener(aListener) {
-  this._nm.removeListener(aListener);
+  Cc["@activestate.com/koNotification/manager;1"]
+    .getService(Ci.koINotificationManager)
+    .removeListener(aListener);
 };
 
 /**
@@ -238,30 +242,34 @@ function KoNotificationManagerWrapper_removeListener(aListener) {
  */
 KoNotificationManagerWrapper.prototype = Proxy.create((function(NMW)({
   getOwnPropertyDescriptor: function(name) {
+    var nm = NMW._nm;
+    if (!nm) {
+      return undefined;
+    }
     if (/^\d+$/.test(name)) {
       var index = parseInt(name, 10);
-      if (index > -1 && index < NMW._nm.notificationCount) {
+      if (index > -1 && index < nm.notificationCount) {
         return {
           enumerable: true,
-          get: function() NMW._nm.getAllNotifications(index, index + 1).shift()
+          get: function() nm.getAllNotifications(index, index + 1).shift()
         };
       }
     }
     if (name == "length") {
-      return { enumerable: false, get: function() NMW._nm.notificationCount };
+      return { enumerable: false, get: function() nm.notificationCount };
     }
     if (NMW.hasOwnProperty(name)) {
       // forward to base prototype
       return { enumerable: false, get: function() NMW[name] };
     }
-    if (Object.getPrototypeOf(NMW._nm).hasOwnProperty(name)) {
+    if (Object.getPrototypeOf(nm).hasOwnProperty(name)) {
       // forward to koINotificationManager
-      var Function = Components.utils.getGlobalForObject(NMW._nm).Function;
-      if (NMW._nm[name] instanceof Function) {
+      var Function = Components.utils.getGlobalForObject(nm).Function;
+      if (nm[name] instanceof Function) {
         return { enumerable: false,
-                 get: function() NMW._nm[name].bind(NMW._nm) };
+                 get: function() nm[name].bind(nm) };
       }
-      return { enumerable: false, get: function() NMW._nm[name] };
+      return { enumerable: false, get: function() nm[name] };
     }
     // TODO: maybe consider importing things from Array.prototype?
     return undefined;
@@ -281,12 +289,16 @@ KoNotificationManagerWrapper.prototype = Proxy.create((function(NMW)({
     return undefined;
   },
   getOwnPropertyNames: function() {
+    var nm = NMW._nm;
+    if (!nm) {
+      return ["length"];
+    }
     // array: [0, 1, 2, ... notificationCount - 1]
-    var names = Object.keys(Array(NMW._nm.notificationCount + 1).join(".").split(""));
+    var names = Object.keys(Array(nm.notificationCount + 1).join(".").split(""));
     names.unshift("length");
     // things from koINotificationManager
-    var nm = Object.getPrototypeOf(NMW._nm);
-    for each (var name in Object.getOwnPropertyNames(nm)) {
+    var nmProto = Object.getPrototypeOf(nm);
+    for each (var name in Object.getOwnPropertyNames(nmProto)) {
       if (name == "QueryInterface") continue;
       names.push(name);
     }

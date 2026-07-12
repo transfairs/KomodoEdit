@@ -1,5 +1,4 @@
 const {classes: Cc} = Components;
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 var schemeService = Cc['@activestate.com/koScintillaSchemeService;1'].getService();
 

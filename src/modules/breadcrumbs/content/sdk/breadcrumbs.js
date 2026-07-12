@@ -479,15 +479,15 @@ var breadcrumbs = function(view) {
         {
             element.removeAttribute("collapsed");
 
-            var action = koFile.sccAction;
-            var hasConflict = (action == 'conflict') || koFile.sccConflict;
+            var action = ("sccAction" in koFile) ? koFile.sccAction : '';
+            var hasConflict = (action == 'conflict') || (("sccConflict" in koFile) && koFile.sccConflict);
 
             // Set SCC Extra Status
             if (hasConflict)
             {
                 element.setAttribute('file_scc_status_extra', 'scc_conflict');
             }
-            else if (koFile.sccNeedSync)
+            else if (("sccNeedSync" in koFile) && koFile.sccNeedSync)
             {
                 element.setAttribute('file_scc_status_extra', 'scc_needSync');
             }

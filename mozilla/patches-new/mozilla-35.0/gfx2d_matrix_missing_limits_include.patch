@@ -1,0 +1,14 @@
+Bug: modern libstdc++ headers are leaner and no longer transitively pull
+in <limits> via <algorithm>, so std::numeric_limits is undeclared here.
+Add the missing include directly.
+Index: gfx/2d/Matrix.cpp
+--- a/gfx/2d/Matrix.cpp	Thu Jan 08 23:22:45 2015 -0500
++++ b/gfx/2d/Matrix.cpp	Sun Jul 12 05:36:13 2026 +0800
+@@ -6,6 +6,7 @@
+ #include "Matrix.h"
+ #include "Tools.h"
+ #include <algorithm>
++#include <limits>
+ #include <math.h>
+ 
+ #include "mozilla/FloatingPoint.h" // for UnspecifiedNaN

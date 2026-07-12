@@ -9,7 +9,7 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+var colorpickerXPCOMUtils = Components.utils.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
 
 /***********************************************************
  *              XPCOM class definition                     *
@@ -30,8 +30,8 @@ koColorPicker.prototype = {
     
     classID:          Components.ID("{57dbf673-ce91-4858-93f9-2e47fea3495d}"),
 
-    QueryInterface: XPCOMUtils.generateQI([Ci.koIColorPicker,
-                                           Ci.koIColorPickerAsync]),
+    QueryInterface: colorpickerXPCOMUtils.generateQI([Ci.koIColorPicker,
+                                                      Ci.koIColorPickerAsync]),
 
     chromeURL: "chrome://komodo/content/colorpicker/colorpicker.xul",
 

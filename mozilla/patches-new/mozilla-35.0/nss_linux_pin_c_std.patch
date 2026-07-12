@@ -1,0 +1,41 @@
+Bug: modern GCC's default C standard makes bool/true/false reserved
+keywords (a C23-era change), but NSS's C sources (e.g. ckhelper.c,
+which declares a local variable literally named "bool") predate that
+and rely on pre-C23 rules where "bool" is an ordinary identifier
+unless <stdbool.h> is included. NSS's own Linux coreconf build never
+pinned an explicit -std=, so it silently picked up whatever GCC
+defaults to. Pin -std=gnu99, matching the same class of fix already
+needed for the bundled Python 2.7 build (see scripts/komodo-repro.sh).
+
+GCC 14+ also promoted -Wimplicit-function-declaration, -Wimplicit-int,
+-Wincompatible-pointer-types and -Wint-conversion from warnings to
+hard errors by default for C, independent of -Werror. This trips up
+old vendored NSS C code that predates that default and was never
+-Werror'd for these historically (e.g. secutil.c passes a function
+whose SECItem*/char* parameters are const-qualified where the
+SECU_PPFunc typedef expects non-const pointers -- a mismatch that
+used to just warn). Keep these as (non-fatal) warnings too, matching
+the same relaxation already applied to the main tree's CFLAGS via
+cflags_relax_c_pointer_type_errors.patch (NSS uses its own separate
+coreconf build, so it needs the same relaxation applied here too).
+Index: security/nss/coreconf/Linux.mk
+--- a/security/nss/coreconf/Linux.mk	Thu Jan 08 23:22:45 2015 -0500
++++ b/security/nss/coreconf/Linux.mk	Sun Jul 12 11:12:22 2026 +0800
+@@ -130,7 +130,16 @@
+ OS_PTHREAD = -lpthread 
+ endif
+ 
+-OS_CFLAGS		= $(DSO_CFLAGS) $(OS_REL_CFLAGS) $(ARCHFLAG) -Wall -Werror-implicit-function-declaration -Wno-switch -pipe -ffunction-sections -fdata-sections -DLINUX -Dlinux -DHAVE_STRERROR
++# Modern GCC's C default standard makes bool/true/false reserved
++# keywords, but this code (e.g. ckhelper.c) uses "bool" as an ordinary
++# identifier per pre-C23 rules. Pin an older C dialect so it still
++# compiles.
++# GCC 14+ also promoted -Wimplicit-function-declaration, -Wimplicit-int,
++# -Wincompatible-pointer-types and -Wint-conversion from warnings to
++# hard errors by default for C, independent of -Werror. This old code
++# (e.g. secutil.c's const-qualification mismatches against the
++# SECU_PPFunc typedef) predates that default; keep them as warnings.
++OS_CFLAGS		= $(DSO_CFLAGS) $(OS_REL_CFLAGS) $(ARCHFLAG) -std=gnu99 -Wall -Werror-implicit-function-declaration -Wno-switch -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wno-error=implicit-int -pipe -ffunction-sections -fdata-sections -DLINUX -Dlinux -DHAVE_STRERROR
+ OS_LIBS			= $(OS_PTHREAD) -ldl -lc
+ 
+ ifdef USE_PTHREADS

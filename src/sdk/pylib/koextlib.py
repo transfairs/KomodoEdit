@@ -1362,9 +1362,16 @@ def _xpidl(idl_path, xpt_path, ko_info, logstream=None):
     xpt_path_sans_ext = splitext(xpt_path)[0]
     includes = ['-I "%s"' % d for d in ko_info.idl_dirs + [dirname(idl_path)]]
     cmd = '"%s" "%s" %s -o %s.xpt %s' \
-          % (sys.executable, ko_info.typelib_path, ' '.join(includes),
+          % (_koext_pyexe(), ko_info.typelib_path, ' '.join(includes),
              xpt_path_sans_ext, idl_path)
     _run(cmd, logstream)
+
+
+def _koext_pyexe():
+    """Prefer the python2.7 wrapper over python2.7.real for shared libs."""
+    pyexe = sys.executable
+    wrapper = join(dirname(abspath(pyexe)), "python2.7")
+    return wrapper if exists(wrapper) else pyexe
 
 
 def _luddite_compile(udl_path, output_dir, ko_info):

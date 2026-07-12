@@ -1,0 +1,58 @@
+Bug: modern glibc no longer exposes the major()/minor() device-number
+macros implicitly via <sys/types.h>; they require the dedicated
+<sys/sysmacros.h> header, which this Linux-quota code path never
+included. Simply adding that #include isn't enough on this toolchain,
+though: major()/minor() expand to calls to extern gnu_dev_major()/
+gnu_dev_minor(), and those references end up with hidden ELF
+visibility (the header isn't covered by Mozilla's system-header
+visibility-wrapping mechanism used for headers registered in
+config/system-headers), which fails to link ("hidden symbol
+`gnu_dev_minor' isn't defined") against libc's real (default-visibility)
+definitions.
+
+Sidestep the whole problem by decoding the device number ourselves,
+using glibc's own documented dev_t bit layout (see
+bits/sysmacros.h), instead of depending on major()/minor() or
+<sys/sysmacros.h> at all.
+Index: xpcom/io/nsLocalFileUnix.cpp
+--- a/xpcom/io/nsLocalFileUnix.cpp	Thu Jan 08 23:22:45 2015 -0500
++++ b/xpcom/io/nsLocalFileUnix.cpp	Sun Jul 12 12:08:47 2026 +0800
+@@ -27,6 +27,27 @@
+ #if defined(HAVE_SYS_QUOTA_H) && defined(HAVE_LINUX_QUOTA_H)
+ #define USE_LINUX_QUOTACTL
+ #include <sys/quota.h>
++// <sys/sysmacros.h>'s major()/minor() pull in extern gnu_dev_major()/
++// gnu_dev_minor(); on this toolchain those references end up with
++// hidden ELF visibility (the header isn't covered by Mozilla's system
++// header visibility-wrapping) and fail to link against libc. Decode
++// the device number ourselves using glibc's own documented bit layout
++// instead of depending on those external symbols.
++static unsigned int
++mozilla_dev_major(dev_t aDev)
++{
++  unsigned int major = (aDev & 0x00000000000fff00ull) >> 8;
++  major |= (aDev & 0xfffff00000000000ull) >> 32;
++  return major;
++}
++
++static unsigned int
++mozilla_dev_minor(dev_t aDev)
++{
++  unsigned int minor = (aDev & 0x00000000000000ffull) >> 0;
++  minor |= (aDev & 0x00000ffffff00000ull) >> 12;
++  return minor;
++}
+ #endif
+ 
+ #include "xpcom-private.h"
+@@ -1393,8 +1414,8 @@
+   }
+ 
+   nsCString deviceName;
+-  if (!GetDeviceName(major(mCachedStat.st_dev),
+-                     minor(mCachedStat.st_dev),
++  if (!GetDeviceName(mozilla_dev_major(mCachedStat.st_dev),
++                     mozilla_dev_minor(mCachedStat.st_dev),
+                      deviceName)) {
+     return NS_OK;
+   }

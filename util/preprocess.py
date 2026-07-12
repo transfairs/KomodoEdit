@@ -198,7 +198,7 @@ class _Logger:
             self.level = self.WARN
         else:
             self.level = level
-        if type(streamOrFileName) == types.StringType:
+        if isinstance(streamOrFileName, str):
             self.stream = open(streamOrFileName, 'w')
             self._opennedStream = 1
         else:
@@ -345,7 +345,7 @@ def getContentType(filename):
     basename = os.path.basename(filename)
     contentType = None
     # Try to determine from the filename.
-    if not contentType and filenameMap.has_key(basename):
+    if not contentType and basename in filenameMap:
         contentType = filenameMap[basename]
         log.debug("Content type of '%s' is '%s' (determined from full "\
                   "filename).", filename, contentType)
@@ -355,7 +355,7 @@ def getContentType(filename):
         if sys.platform.startswith("win"):
             # Suffix patterns are case-insensitive on Windows.
             suffix = suffix.lower()
-        if suffixMap.has_key(suffix):
+        if suffix in suffixMap:
             contentType = suffixMap[suffix]
             log.debug("Content type of '%s' is '%s' (determined from "\
                       "suffix '%s').", filename, contentType, suffix)
@@ -369,7 +369,7 @@ def getContentType(filename):
                 break
     # Try to determine from the file contents.
     content = open(filename, 'rb').read()
-    if content.startswith("<?xml"):  # cheap XML sniffing
+    if content.startswith(b"<?xml"):  # cheap XML sniffing
         contentType = "XML"
     # XXX reading shebang line/magic number
     # XXX reading Emacs-style mode line???
@@ -445,12 +445,12 @@ def preprocess(infile, outfile=sys.stdout, defines={}, force=0, keepLines=0,
     #       # #else
     #       ...
     #       # #endif
-    stmts = ['#\s*(?P<op>if|elif|ifdef|ifndef)\s+(?P<expr>.*?)',
-             '#\s*(?P<op>else|endif)',
-             '#\s*(?P<op>error)\s+(?P<error>.*?)',
-             '#\s*(?P<op>define)\s+(?P<var>[^\s]*?)(\s+(?P<val>.+?))?',
-             '#\s*(?P<op>undef)\s+(?P<var>[^\s]*?)',
-             '#\s*(?P<op>include)\s+"(?P<fname>.*?)"',
+    stmts = [r'#\s*(?P<op>if|elif|ifdef|ifndef)\s+(?P<expr>.*?)',
+             r'#\s*(?P<op>else|endif)',
+             r'#\s*(?P<op>error)\s+(?P<error>.*?)',
+             r'#\s*(?P<op>define)\s+(?P<var>[^\s]*?)(\s+(?P<val>.+?))?',
+             r'#\s*(?P<op>undef)\s+(?P<var>[^\s]*?)',
+             r'#\s*(?P<op>include)\s+"(?P<fname>.*?)"',
              r'#\s*(?P<op>include)\s+(?P<var>[^\s]+?)',
             ]
     patterns = []
@@ -476,9 +476,9 @@ def preprocess(infile, outfile=sys.stdout, defines={}, force=0, keepLines=0,
     fin = open(infile, 'r')
     lines = fin.readlines()
     fin.close()
-    if type(outfile) in types.StringTypes:
+    if isinstance(outfile, str):
         if force and os.path.exists(outfile):
-            os.chmod(outfile, 0777)
+            os.chmod(outfile, 0o777)
             os.remove(outfile)
         fout = open(outfile, 'w')
     else:

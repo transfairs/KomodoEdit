@@ -1,5 +1,18 @@
 # Komodo Edit
 
+![Python](https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white)
+![C++](https://img.shields.io/badge/-C++-00599C?logo=cplusplus&logoColor=white)
+![JavaScript](https://img.shields.io/badge/-JavaScript-F7DF1E?logo=javascript&logoColor=black)
+![Perl](https://img.shields.io/badge/-Perl-39457E?logo=perl&logoColor=white)
+![Shell](https://img.shields.io/badge/-Shell-121011?logo=gnubash&logoColor=white)
+
+**This is not an official ActiveState/Komodo release or repository.** This
+is a clone of [Komodo/KomodoEdit](https://github.com/Komodo/KomodoEdit),
+adapted to build and run on **Ubuntu 26.04** (modern GCC/binutils/glibc/
+fontconfig break the original 2015-era build in several places). See
+[docs/reproducible-linux-workflow.md](docs/reproducible-linux-workflow.md)
+for the fixed-up, reproducible build workflow used by this fork.
+
 This readme explains how to get started building, using and developing with
 the Komodo Edit source base.
 
@@ -27,11 +40,21 @@ the entire project.
 
 ## Download
 
-You can [download Komodo Edit here](https://downloads.activestate.com/Komodo/releases/12.0.1/index.html).
+Check this repo's
+[Releases](../../releases) page for builds from this fork, or build it
+yourself — see [Building Komodo](#building-komodo) below.
+
+The official ActiveState/Komodo binaries (unrelated to this fork) are
+available at
+<https://downloads.activestate.com/Komodo/releases/12.0.1/index.html>.
 
 ## Feedback
 
-There are several ways to get in contact with the Komodo devs:
+The channels below belong to the original, upstream Komodo project — not
+this fork. For issues specific to this fork's Ubuntu 26.04 build fixes,
+use this repo's own issue tracker instead.
+
+There are several ways to get in contact with the upstream Komodo devs:
 
 Github: <https://github.com/Komodo/KomodoEdit>
 
@@ -46,6 +69,9 @@ Mailing Lists: [komodo-discuss](http://code.activestate.com/lists/komodo-discuss
 ## Building Komodo
 Note that these are simplified steps of the building process, for a more in-depth
 guide check (outdated) [BUILD.txt](docs/BUILD.txt). 
+
+For a repeatable Ubuntu 26.04 workflow (dependencies, build, install, uninstall), see
+[docs/reproducible-linux-workflow.md](docs/reproducible-linux-workflow.md).
 
 ### Building on Windows
 
@@ -246,12 +272,23 @@ or simply `bk build && bk run` to quickly get back into Komodo. Subsequent build
 should be a lot faster as much of the compiled data is cached.
 
 ### Building on Linux
-[Linux instructions](docs/Linux_build_guide.md)
+
+For Ubuntu 26.04 (this fork's target), use the reproducible build workflow:
+[docs/reproducible-linux-workflow.md](docs/reproducible-linux-workflow.md).
+
+The original [Linux instructions](docs/Linux_build_guide.md) are kept for
+reference but target older toolchains (perl 5.22, g++ 4.9) and are not
+maintained in this fork.
 <br />
 <br />
 
 
 ### Building with Docker
+
+> **Note:** this Docker setup targets Ubuntu 12.04 and predates this fork's
+> Ubuntu 26.04 fixes; it is not maintained here. For Ubuntu 26.04, use
+> [docs/reproducible-linux-workflow.md](docs/reproducible-linux-workflow.md)
+> instead.
 
 The easiest way to get started is to use our Docker image, this will basically
 provide you with a Ubuntu 12.04 based build of Komodo.

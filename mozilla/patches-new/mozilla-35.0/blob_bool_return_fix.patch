@@ -1,0 +1,22 @@
+Bug: modern compilers reject returning nullptr from bool-returning IPC handlers.
+Index: dom/ipc/Blob.cpp
+--- a/dom/ipc/Blob.cpp
++++ b/dom/ipc/Blob.cpp
+@@ -3871,7 +3871,7 @@ BlobParent::RecvPBlobStreamConstructor(P
+   // Make sure we can't overflow.
+   if (NS_WARN_IF(UINT64_MAX - aLength < aStart)) {
+     ASSERT_UNLESS_FUZZING();
+-    return nullptr;
++    return false;
+   }
+ 
+   ErrorResult errorResult;
+@@ -3878,7 +3878,7 @@ BlobParent::RecvPBlobStreamConstructor(P
+ 
+   if (NS_WARN_IF(aStart + aLength > blobLength)) {
+     ASSERT_UNLESS_FUZZING();
+-    return nullptr;
++    return false;
+   }
+ 
+   nsRefPtr<FileImpl> blobImpl;

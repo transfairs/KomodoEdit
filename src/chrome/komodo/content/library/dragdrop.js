@@ -20,18 +20,18 @@ if (typeof(ko.dragdrop)=='undefined') {
 
     const Cc = Components.classes;
     const Ci = Components.interfaces;
-    Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+    var dragdropXPCOMUtils = Components.utils.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
     
     var local = {};
     
-    XPCOMUtils.defineLazyGetter(local, "log", function() ko.logging.getLogger("ko.dragDrop"));
+    dragdropXPCOMUtils.defineLazyGetter(local, "log", function() ko.logging.getLogger("ko.dragDrop"));
     //local.log.setLevel(ko.logging.LOG_DEBUG);
     
-    XPCOMUtils.defineLazyGetter(local, "bundle", function() Cc["@mozilla.org/intl/stringbundle;1"]
+    dragdropXPCOMUtils.defineLazyGetter(local, "bundle", function() Cc["@mozilla.org/intl/stringbundle;1"]
                                                             .getService(Ci.nsIStringBundleService)
                                                             .createBundle("chrome://komodo/locale/library.properties"));
 
-    XPCOMUtils.defineLazyGetter(local, "fileProtocolHandler", function() Cc["@mozilla.org/network/io-service;1"]
+    dragdropXPCOMUtils.defineLazyGetter(local, "fileProtocolHandler", function() Cc["@mozilla.org/network/io-service;1"]
                                                             .getService(Ci.nsIIOService)
                                                             .getProtocolHandler("file")
                                                             .QueryInterface(Ci.nsIFileProtocolHandler));

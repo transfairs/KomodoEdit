@@ -1,0 +1,68 @@
+Bug: linking libxul.so on this toolchain fails with "undefined
+reference to `rand'" / "undefined reference to `srand'" for every one
+of the ~130 call sites across the tree that use them, even though
+every other libc symbol resolves fine -- including malloc, free,
+printf, memcpy, and the functionally-identical random()/srandom()
+pair, all pulled from the very same libc.so in the very same link.
+Isolated testing (relinking libxul.so's exact object list by hand,
+swapping in a trivial standalone object that only calls rand()/
+random()) confirmed this is specific to the literal symbol names
+"rand" and "srand" at this object-file scale/toolchain combination
+(GCC 15 / binutils 2.46 / glibc 2.43) -- not to anything Mozilla-
+specific, and not fixable by reordering -lc, forcing --allow-shlib-
+undefined, using libc.so.6 directly instead of via the ld GROUP()
+script, or adding/removing --gc-sections.
+
+Work around it by providing our own rand()/srand() definitions,
+implemented as thin wrappers around random()/srandom() (which have
+identical semantics and value range to rand()/srand() on glibc:
+RAND_MAX == 2^31-1 both ways). Being linked in ahead of libc, these
+satisfy every caller directly and the problematic libc symbols are
+never looked up at all.
+Index: xpcom/build/moz.build
+--- a/xpcom/build/moz.build	Thu Jan 08 23:22:45 2015 -0500
++++ b/xpcom/build/moz.build	Sun Jul 12 12:10:24 2026 +0800
+@@ -61,6 +61,11 @@
+         'NSPRInterposer.cpp',
+     ]
+ 
++if CONFIG['OS_ARCH'] == 'Linux':
++    SOURCES += [
++        'LinuxRandCompat.c',
++    ]
++
+ # FileLocation.cpp and Omnijar.cpp cannot be built in unified mode because they
+ # use plarena.h.
+ SOURCES += [
+Index: xpcom/build/LinuxRandCompat.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/xpcom/build/LinuxRandCompat.c	Sun Jul 12 12:10:24 2026 +0800
+@@ -0,0 +1,28 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++/* On this Linux toolchain, the final libxul.so link fails to resolve
++ * plain calls to libc's rand()/srand() ("undefined reference to
++ * `rand'") even though every other libc symbol -- including the
++ * functionally-identical random()/srandom() -- resolves fine from the
++ * same libc.so in the same link. Providing our own definitions here
++ * (linked in ahead of libc) sidesteps whatever is going on with those
++ * two specific symbol names. random()/srandom() have the same value
++ * range and semantics as rand()/srand() on glibc (RAND_MAX == 2^31-1
++ * both ways), so this is a value-for-value equivalent replacement.
++ */
++
++#include <stdlib.h>
++
++int
++rand(void)
++{
++  return (int)random();
++}
++
++void
++srand(unsigned int aSeed)
++{
++  srandom(aSeed);
++}

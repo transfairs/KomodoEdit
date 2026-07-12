@@ -1,0 +1,54 @@
+Bug: the STL wrapper template includes mozilla/mozalloc.h before the
+real system header it wraps. For most wrapped headers this is harmless,
+but for cstdlib specifically it creates a circular re-entry on modern
+libstdc++: mozalloc.h pulls in <stdlib.h>, whose libstdc++ compat shim
+re-enters <cstdlib> to inject the std:: names -- while this wrapper's
+own #include_next <cstdlib> is still in flight. That trips this file's
+own include guard, so the re-entrant #include <cstdlib> becomes a no-op
+and std::abort()/std::exit()/etc. never get declared, breaking every
+translation unit that pulls in cstdlib this way. Including the real
+header first (mirroring how <new> is already special-cased above) means
+mozalloc.h's <stdlib.h> detour lands on an already-fully-processed,
+guarded cstdlib and is safely skipped instead of short-circuited mid-way.
+Index: config/gcc-stl-wrapper.template.h
+--- a/config/gcc-stl-wrapper.template.h	Thu Jan 08 23:22:45 2015 -0500
++++ b/config/gcc-stl-wrapper.template.h	Sun Jul 12 04:51:19 2026 +0800
+@@ -32,15 +32,6 @@
+ //    one where the current file was found.
+ #include_next <new>
+ 
+-// See if we're in code that can use mozalloc.  NB: this duplicates
+-// code in nscore.h because nscore.h pulls in prtypes.h, and chromium
+-// can't build with that being included before base/basictypes.h.
+-#if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
+-#  include "mozilla/mozalloc.h"
+-#else
+-#  error "STL code can only be used with infallible ::operator new()"
+-#endif
+-
+ #if defined(DEBUG) && !defined(_GLIBCXX_DEBUG)
+ // Enable checked iterators and other goodies
+ //
+@@ -55,6 +46,22 @@
+ #include_next <${HEADER}>
+ #pragma GCC visibility pop
+ 
++// See if we're in code that can use mozalloc.  NB: this duplicates
++// code in nscore.h because nscore.h pulls in prtypes.h, and chromium
++// can't build with that being included before base/basictypes.h.
++//
++// This must come after #include_next <${HEADER}> above: mozalloc.h pulls
++// in <stdlib.h>, and on toolchains where libstdc++'s <stdlib.h> compat
++// header re-enters <cstdlib> to inject the std:: names, doing so while
++// this file's own #include_next <${HEADER}> is still in flight (as
++// happens when ${HEADER} is cstdlib) trips this file's own include guard
++// and leaves std::abort() et al. undeclared.
++#if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
++#  include "mozilla/mozalloc.h"
++#else
++#  error "STL code can only be used with infallible ::operator new()"
++#endif
++
+ // gcc calls a __throw_*() function from bits/functexcept.h when it
+ // wants to "throw an exception".  functexcept exists nominally to
+ // support -fno-exceptions, but since we'll always use the system

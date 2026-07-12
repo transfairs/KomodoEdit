@@ -2,7 +2,7 @@ var window = {};
 var EXPORTED_SYMBOLS = [];
 
 window.less = {};
-less = window.less;
+var less = window.less;
 
 (function() {
 
@@ -164,7 +164,7 @@ less.Parser = function Parser(env) {
         } else {
             sync ();
 
-            if (match = tok.exec(chunks[j])) {
+            if ((match = tok.exec(chunks[j]))) {
                 length = match[0].length;
             } else {
                 return null;
@@ -330,7 +330,7 @@ less.Parser = function Parser(env) {
 
                 for (var i = 0, c, cc; i < input.length;) {
                     skip.lastIndex = i;
-                    if (match = skip.exec(input)) {
+                    if ((match = skip.exec(input))) {
                         if (match.index === i) {
                             i += match[0].length;
                             chunk.push(match[0]);
@@ -339,7 +339,7 @@ less.Parser = function Parser(env) {
                     c = input.charAt(i);
                     comment.lastIndex = string.lastIndex = i;
 
-                    if (match = string.exec(input)) {
+                    if ((match = string.exec(input))) {
                         if (match.index === i) {
                             i += match[0].length;
                             chunk.push(match[0]);
@@ -350,7 +350,7 @@ less.Parser = function Parser(env) {
                     if (!inParam && c === '/') {
                         cc = input.charAt(i + 1);
                         if (cc === '/' || cc === '*') {
-                            if (match = comment.exec(input)) {
+                            if ((match = comment.exec(input))) {
                                 if (match.index === i) {
                                     i += match[0].length;
                                     chunk.push(match[0]);
@@ -444,9 +444,9 @@ less.Parser = function Parser(env) {
                             .run(evaldRoot);
 
                         var css = evaldRoot.toCSS({
-                                compress: Boolean(options.compress),
-                                dumpLineNumbers: env.dumpLineNumbers,
-                                strictUnits: Boolean(options.strictUnits)});
+                            compress: Boolean(options && options.compress),
+                            dumpLineNumbers: env && env.dumpLineNumbers,
+                            strictUnits: Boolean(options && options.strictUnits)});
                     } catch (e) {
                         throw new(LessError)(e, env);
                     }
@@ -506,7 +506,7 @@ less.Parser = function Parser(env) {
                 }
             };
 
-            if (env.processImports !== false) {
+            if (!env || env.processImports !== false) {
                 new tree.importVisitor(this.imports, finish)
                     .run(root);
             } else {
@@ -580,7 +580,7 @@ less.Parser = function Parser(env) {
 
                 if (input.charAt(i + 1) === '/') {
                     return new(tree.Comment)($(/^\/\/.*/), true);
-                } else if (comment = $(/^\/\*(?:[^*]|\*+[^\/*])*\*+\/\n?/)) {
+                } else if ((comment = $(/^\/\*(?:[^*]|\*+[^\/*])*\*+\/\n?/))) {
                     return new(tree.Comment)(comment);
                 }
             },
@@ -602,7 +602,7 @@ less.Parser = function Parser(env) {
 
                     e && $('~');
 
-                    if (str = $(/^"((?:[^"\\\r\n]|\\.)*)"|'((?:[^'\\\r\n]|\\.)*)'/)) {
+                    if ((str = $(/^"((?:[^"\\\r\n]|\\.)*)"|'((?:[^'\\\r\n]|\\.)*)'/))) {
                         return new(tree.Quoted)(str[0], str[1] || str[2], e, index, env.currentFileInfo);
                     }
                 },
@@ -615,7 +615,7 @@ less.Parser = function Parser(env) {
                 keyword: function () {
                     var k;
 
-                    if (k = $(/^[_A-Za-z-][_A-Za-z0-9-]*/)) {
+                    if ((k = $(/^[_A-Za-z-][_A-Za-z0-9-]*/))) {
                         if (tree.colors.hasOwnProperty(k)) {
                             // detect named color
                             return new(tree.Color)(tree.colors[k].slice(1));
@@ -666,7 +666,7 @@ less.Parser = function Parser(env) {
                 arguments: function () {
                     var args = [], arg;
 
-                    while (arg = $(this.entities.assignment) || $(this.expression)) {
+                    while ((arg = $(this.entities.assignment) || $(this.expression))) {
                         args.push(arg);
                         if (! $(',')) { break }
                     }
@@ -762,7 +762,7 @@ less.Parser = function Parser(env) {
                     //Is the first char of the dimension 0-9, '.', '+' or '-'
                     if ((c > 57 || c < 43) || c === 47 || c == 44) return;
 
-                    if (value = $(/^([+-]?\d*\.?\d+)(%|[a-z]+)?/)) {
+                    if ((value = $(/^([+-]?\d*\.?\d+)(%|[a-z]+)?/))) {
                         return new(tree.Dimension)(value[1], value[2]);
                     }
                 },
@@ -775,7 +775,7 @@ less.Parser = function Parser(env) {
                 unicodeDescriptor: function () {
                     var ud;
                     
-                    if (ud = $(/^U\+[0-9a-fA-F?]+(\-[0-9a-fA-F?]+)?/)) {
+                    if ((ud = $(/^U\+[0-9a-fA-F?]+(\-[0-9a-fA-F?]+)?/))) {
                         return new(tree.UnicodeDescriptor)(ud[0]);
                     }
                 },
@@ -793,7 +793,7 @@ less.Parser = function Parser(env) {
 
                     e && $('~');
 
-                    if (str = $(/^`([^`]*)`/)) {
+                    if ((str = $(/^`([^`]*)`/))) {
                         return new(tree.JavaScript)(str[1], i, e);
                     }
                 }
@@ -873,7 +873,7 @@ less.Parser = function Parser(env) {
 
                     save(); // stop us absorbing part of an invalid selector
 
-                    while (e = $(/^[#.](?:[\w-]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+/)) {
+                    while ((e = $(/^[#.](?:[\w-]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+/))) {
                         elements.push(new(tree.Element)(c, e, i));
                         c = $('>');
                     }
@@ -1017,7 +1017,7 @@ less.Parser = function Parser(env) {
 
                     save();
 
-                    if (match = $(/^([#.](?:[\w-]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+)\s*\(/)) {
+                    if ((match = $(/^([#.](?:[\w-]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+)\s*\(/))) {
                         name = match[1];
 
                         var argInfo = this.mixin.args.call(this, false);
@@ -1076,7 +1076,7 @@ less.Parser = function Parser(env) {
                 var value;
 
                 if (! $(/^\(opacity=/i)) return;
-                if (value = $(/^\d+/) || $(this.entities.variable)) {
+                if ((value = $(/^\d+/) || $(this.entities.variable))) {
                     expect(')');
                     return new(tree.Alpha)(value);
                 }
@@ -1205,7 +1205,7 @@ less.Parser = function Parser(env) {
                 if (env.dumpLineNumbers)
                     debugInfo = getDebugInfo(i, input, env);
 
-                while (s = $(this.selector)) {
+                while ((s = $(this.selector))) {
                     selectors.push(s);
                     $(this.comment);
                     if (! $(',')) { break }
@@ -1229,7 +1229,7 @@ less.Parser = function Parser(env) {
 
                 if (c === '.' || c === '#' || c === '&') { return }
 
-                if (name = $(this.variable) || $(this.property)) {
+                if ((name = $(this.variable) || $(this.property))) {
                     // prefer to try to parse first if its a variable or we are compressing
                     // but always fallback on the other one
                     value = !tryAnonymous && (env.compress || (name.charAt(0) === '@')) ?
@@ -1251,7 +1251,7 @@ less.Parser = function Parser(env) {
             },
             anonymousValue: function () {
                 var match;
-                if (match = /^([^@+\/'"*`(;{}-]*);/.exec(chunks[j])) {
+                if ((match = /^([^@+\/'"*`(;{}-]*);/.exec(chunks[j]))) {
                     i += match[0].length - 1;
                     return new(tree.Anonymous)(match[1]);
                 }
@@ -1293,7 +1293,7 @@ less.Parser = function Parser(env) {
                 // list of options, surrounded by parens
                 if (! $('(')) { return null; }
                 do {
-                    if (o = $(this.importOption)) {
+                    if ((o = $(this.importOption))) {
                         optionName = o;
                         value = true;
                         switch(optionName) {
@@ -1325,7 +1325,7 @@ less.Parser = function Parser(env) {
                 var e, p, nodes = [];
 
                 do {
-                    if (e = $(this.entities.keyword)) {
+                    if ((e = $(this.entities.keyword))) {
                         nodes.push(e);
                     } else if ($('(')) {
                         p = $(this.property);
@@ -1351,10 +1351,10 @@ less.Parser = function Parser(env) {
                 var e, features = [];
 
                 do {
-                  if (e = $(this.mediaFeature)) {
+                  if ((e = $(this.mediaFeature))) {
                       features.push(e);
                       if (! $(',')) { break }
-                  } else if (e = $(this.entities.variable)) {
+                  } else if ((e = $(this.entities.variable))) {
                       features.push(e);
                       if (! $(',')) { break }
                   }
@@ -1372,7 +1372,7 @@ less.Parser = function Parser(env) {
                 if ($(/^@media/)) {
                     features = $(this.mediaFeatures);
 
-                    if (rules = $(this.block)) {
+                    if ((rules = $(this.block))) {
                         media = new(tree.Media)(rules, features);
                         if(env.dumpLineNumbers)
                             media.debugInfo = debugInfo;
@@ -1392,7 +1392,7 @@ less.Parser = function Parser(env) {
 
                 if (input.charAt(i) !== '@') return;
 
-                if (value = $(this['import']) || $(this.media)) {
+                if ((value = $(this['import']) || $(this.media))) {
                     return value;
                 }
 
@@ -1448,7 +1448,7 @@ less.Parser = function Parser(env) {
 
                 if (hasBlock)
                 {
-                    if (rules = $(this.block)) {
+                    if ((rules = $(this.block))) {
                         return new(tree.Directive)(name, rules);
                     }
                 } else {
@@ -1475,7 +1475,7 @@ less.Parser = function Parser(env) {
             value: function () {
                 var e, expressions = [], important;
 
-                while (e = $(this.expression)) {
+                while ((e = $(this.expression))) {
                     expressions.push(e);
                     if (! $(',')) { break }
                 }
@@ -1493,7 +1493,7 @@ less.Parser = function Parser(env) {
                 var a, e;
 
                 if ($('(')) {
-                    if (a = $(this.addition)) {
+                    if ((a = $(this.addition))) {
                         e = new(tree.Expression)([a]);
                         expect(')');
                         e.parens = true;
@@ -1503,10 +1503,10 @@ less.Parser = function Parser(env) {
             },
             multiplication: function () {
                 var m, a, op, operation, isSpaced, expression = [];
-                if (m = $(this.operand)) {
+                if ((m = $(this.operand))) {
                     isSpaced = isWhitespace(input.charAt(i - 1));
                     while (!peek(/^\/[*\/]/) && (op = ($('/') || $('*')))) {
-                        if (a = $(this.operand)) {
+                        if ((a = $(this.operand))) {
                             m.parensInOp = true;
                             a.parensInOp = true;
                             operation = new(tree.Operation)(op, [operation || m, a], isSpaced);
@@ -1520,7 +1520,7 @@ less.Parser = function Parser(env) {
             },
             addition: function () {
                 var m, a, op, operation, isSpaced;
-                if (m = $(this.multiplication)) {
+                if ((m = $(this.multiplication))) {
                     isSpaced = isWhitespace(input.charAt(i - 1));
                     while ((op = $(/^[-+]\s+/) || (!isSpaced && ($('+') || $('-')))) &&
                            (a = $(this.multiplication))) {
@@ -1535,7 +1535,7 @@ less.Parser = function Parser(env) {
             conditions: function () {
                 var a, b, index = i, condition;
 
-                if (a = $(this.condition)) {
+                if ((a = $(this.condition))) {
                     while ($(',') && (b = $(this.condition))) {
                         condition = new(tree.Condition)('or', condition || a, b, index);
                     }
@@ -1547,9 +1547,9 @@ less.Parser = function Parser(env) {
 
                 if ($(/^not/)) { negate = true }
                 expect('(');
-                if (a = $(this.addition) || $(this.entities.keyword) || $(this.entities.quoted)) {
-                    if (op = $(/^(?:>=|=<|[<=>])/)) {
-                        if (b = $(this.addition) || $(this.entities.keyword) || $(this.entities.quoted)) {
+                if ((a = $(this.addition) || $(this.entities.keyword) || $(this.entities.quoted))) {
+                    if ((op = $(/^(?:>=|=<|[<=>])/))) {
+                        if ((b = $(this.addition) || $(this.entities.keyword) || $(this.entities.quoted))) {
                             c = new(tree.Condition)(op, a, b, index, negate);
                         } else {
                             error('expected expression');
@@ -1592,7 +1592,7 @@ less.Parser = function Parser(env) {
             expression: function () {
                 var e, delim, entities = [], d;
 
-                while (e = $(this.addition) || $(this.entity)) {
+                while ((e = $(this.addition) || $(this.entity))) {
                     entities.push(e);
                     // operations do not allow keyword "/" dimension (e.g. small/20px) so we support that here
                     if (!peek(/^\/[\/*]/) && (delim = $('/'))) {
@@ -1606,7 +1606,7 @@ less.Parser = function Parser(env) {
             property: function () {
                 var name;
 
-                if (name = $(/^(\*?-?[_a-z0-9-]+)\s*:/)) {
+                if ((name = $(/^(\*?-?[_a-z0-9-]+)\s*:/))) {
                     return name[1];
                 }
             }
@@ -2125,7 +2125,9 @@ var mathFunctions = [{name:"ceil"}, {name:"floor"}, {name: "sqrt"}, {name:"abs"}
     };
 
 for(var i = 0; i < mathFunctions.length; i++) {
-    tree.functions[mathFunctions[i].name] = createMathFunction(mathFunctions[i].name, mathFunctions[i].unit);
+    var mathFn = mathFunctions[i];
+    var fnUnit = ("unit" in mathFn) ? mathFn.unit : null;
+    tree.functions[mathFn.name] = createMathFunction(mathFn.name, fnUnit);
 }
 
 function hsla(color) {
@@ -3627,7 +3629,7 @@ tree.mixin.Definition.prototype = {
 
             for(i = 0; i < args.length; i++) {
                 arg = args[i];
-                if (name = (arg && arg.name)) {
+                if ((name = (arg && arg.name))) {
                     isNamedFound = false;
                     for(j = 0; j < params.length; j++) {
                         if (!evaldArguments[j] && name === params[j].name) {
@@ -3654,7 +3656,7 @@ tree.mixin.Definition.prototype = {
             
             arg = args && args[argIndex];
 
-            if (name = params[i].name) {
+            if ((name = params[i].name)) {
                 if (params[i].variadic && args) {
                     varargs = [];
                     for (j = argIndex; j < args.length; j++) {
@@ -4076,7 +4078,11 @@ tree.Ruleset.prototype = {
         }
     },
     variable: function (name) {
-        return this.variables()[name];
+        var vars = this.variables();
+        if (vars && (name in vars)) {
+            return vars[name];
+        }
+        return undefined;
     },
     rulesets: function () {
         return this.rules.filter(function (r) {
@@ -4093,7 +4099,7 @@ tree.Ruleset.prototype = {
         this.rulesets().forEach(function (rule) {
             if (rule !== self) {
                 for (var j = 0; j < rule.selectors.length; j++) {
-                    if (match = selector.match(rule.selectors[j])) {
+                    if ((match = selector.match(rule.selectors[j]))) {
                         if (selector.elements.length > rule.selectors[j].elements.length) {
                             Array.prototype.push.apply(rules, rule.find(
                                 new(tree.Selector)(selector.elements.slice(1)), self));
@@ -4543,11 +4549,11 @@ tree.Variable.prototype = {
         
         this.evaluating = true;
 
-        if (variable = tree.find(env.frames, function (frame) {
-            if (v = frame.variable(name)) {
+        if ((variable = tree.find(env.frames, function (frame) {
+            if ((v = frame.variable(name))) {
                 return v.value.eval(env);
             }
-        })) { 
+        }))) { 
             this.evaluating = false;
             return variable;
         }
@@ -4593,7 +4599,7 @@ tree.debugInfo.asMediaQuery = function(ctx) {
 
 tree.find = function (obj, fun) {
     for (var i = 0, r; i < obj.length; i++) {
-        if (r = fun.call(obj, obj[i])) { return r }
+        if ((r = fun.call(obj, obj[i]))) { return r }
     }
     return null;
 };

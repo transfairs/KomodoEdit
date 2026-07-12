@@ -1,0 +1,44 @@
+Bug: Komodo crashes on startup (SIGSEGV inside libfontconfig.so.1's
+FcFontSetSort) while laying out its first XUL window, under modern
+fontconfig (2.17+, as shipped e.g. on Ubuntu 26.04).
+
+This exact class of crash was already known and fixed for Solaris back
+in 2015 (bug 474758): passing a null FcConfig* to FcFontSetSort/
+FcFontSort crashed there, so the code special-cased Solaris to pass
+FcConfigGetCurrent() instead. Modern fontconfig apparently hit the
+same regression generally, not just on Solaris, so stop special-casing
+and always pass the current config.
+Index: gfx/thebes/gfxPangoFonts.cpp
+--- a/gfx/thebes/gfxPangoFonts.cpp	Thu Jan 08 23:22:45 2015 -0500
++++ b/gfx/thebes/gfxPangoFonts.cpp	Sun Jul 12 13:36:02 2026 +0800
+@@ -1092,15 +1092,13 @@
+ 
+     FcFontSet *sets[1] = { fontSet };
+     FcResult result;
+-#ifdef SOLARIS
+-    // Get around a crash of FcFontSetSort when FcConfig is nullptr
+-    // Solaris's FcFontSetSort needs an FcConfig (bug 474758)
++    // Get around a crash of FcFontSetSort when FcConfig is nullptr.
++    // Originally only known to affect Solaris's FcFontSetSort (bug
++    // 474758), but modern fontconfig (2.17+, as shipped e.g. on Ubuntu
++    // 26.04) crashes here too when passed a null FcConfig, so always
++    // pass the current config rather than special-casing Solaris.
+     fontSet.own(FcFontSetSort(FcConfigGetCurrent(), sets, 1, mSortPattern,
+                               FcFalse, nullptr, &result));
+-#else
+-    fontSet.own(FcFontSetSort(nullptr, sets, 1, mSortPattern,
+-                              FcFalse, nullptr, &result));
+-#endif
+ 
+     if (truncateMarker != nullptr && fontSet) {
+         nsAutoRef<FcFontSet> truncatedSet(FcFontSetCreate());
+@@ -1133,7 +1131,9 @@
+     // GetFontPatternAt() will trim lazily if and as needed, which will also
+     // remove duplicates of preferred fonts.
+     FcResult result;
+-    return nsReturnRef<FcFontSet>(FcFontSort(nullptr, mSortPattern,
++    // See the FcFontSetSort call above: modern fontconfig crashes when
++    // passed a null FcConfig here too.
++    return nsReturnRef<FcFontSet>(FcFontSort(FcConfigGetCurrent(), mSortPattern,
+                                              FcFalse, nullptr, &result));
+ }

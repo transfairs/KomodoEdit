@@ -31,3 +31,7 @@ src/codeintel/tmp/
 *.komodoproject
 install/
 packages/
+
+# Accidentally-committed local Python/sysroot bundles (see squash cleanup)
+/.py2/
+/.sysroot/

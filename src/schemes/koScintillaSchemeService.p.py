@@ -930,7 +930,9 @@ class Scheme(SchemeBase):
         foreColor = foldStyle.get("fore", None)
         backColor = foldStyle.get("back", None)
         if foreColor is not None or backColor is not None:
-            foldBitMask = scimoz.SC_MASK_FOLDERS
+            # Older XPCOM/Scintilla bindings can expose constants as floats.
+            # Bit operations below require an integer mask.
+            foldBitMask = int(scimoz.SC_MASK_FOLDERS)
             for i in range(scimoz.MARKER_MAX+1):
                 if foldBitMask & (1 << i):
                     # Scintilla swaps the fore and back colors for margins, so

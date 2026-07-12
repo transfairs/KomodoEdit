@@ -1547,25 +1547,47 @@ class koGlobalPrefService(object):
     def __init__(self):
         log.debug("koPrefService starting up...")
         global lastErrorSvc
-        lastErrorSvc = components.classes["@activestate.com/koLastErrorService;1"]\
-                      .getService(components.interfaces.koILastErrorService)
+        try:
+            lastErrorSvc = components.classes["@activestate.com/koLastErrorService;1"]\
+                          .getService(components.interfaces.koILastErrorService)
+        except:
+            log.exception("koPrefService failed to acquire koLastErrorService")
+            raise
 
         self.pref_map = {}
         self.factory = koPreferenceSetObjectFactory()
 
-        self._koDirSvc = components.classes["@activestate.com/koDirs;1"].\
-            getService(components.interfaces.koIDirs)
+        try:
+            self._koDirSvc = components.classes["@activestate.com/koDirs;1"].\
+                getService(components.interfaces.koIDirs)
+        except:
+            log.exception("koPrefService failed to acquire koDirs")
+            raise
         
         for defn in koGlobalPreferenceSets:
             self.pref_map[defn.name] = None, defn
         # And do the "global" one now, so that self.prefs "just works"
-        self.prefs = self.getPrefs("global")
-        self._partSvc = components.classes["@activestate.com/koPartService;1"]\
-            .getService(components.interfaces.koIPartService)
+        try:
+            self.prefs = self.getPrefs("global")
+        except:
+            log.exception("koPrefService failed while loading global prefs")
+            raise
+        try:
+            self._partSvc = components.classes["@activestate.com/koPartService;1"]\
+                .getService(components.interfaces.koIPartService)
+        except:
+            log.exception("koPrefService failed to acquire koPartService; continuing without it")
+            self._partSvc = None
 
         # some limitation on pref sizes
-        self.getPrefs("viewStateMRU").max_length = self.prefs.getLongPref("viewStateMRUSize")
-        self.getPrefs("docStateMRU").max_length = self.prefs.getLongPref("docStateMRUSize")
+        viewStateMRUSize = self.prefs.getLong("viewStateMRUSize", 300)
+        docStateMRUSize = self.prefs.getLong("docStateMRUSize", 300)
+        if not self.prefs.hasLongPref("viewStateMRUSize"):
+            log.warn("koPrefService defaulting missing viewStateMRUSize to %s", viewStateMRUSize)
+        if not self.prefs.hasLongPref("docStateMRUSize"):
+            log.warn("koPrefService defaulting missing docStateMRUSize to %s", docStateMRUSize)
+        self.getPrefs("viewStateMRU").max_length = viewStateMRUSize
+        self.getPrefs("docStateMRU").max_length = docStateMRUSize
 
         obsvc = components.classes["@mozilla.org/observer-service;1"].\
                     getService(components.interfaces.nsIObserverService)
@@ -1717,7 +1739,7 @@ class koGlobalPrefService(object):
 
     @property
     def effectivePrefs(self):
-        if self._partSvc.currentProject:
+        if self._partSvc and self._partSvc.currentProject:
             return self._partSvc.currentProject.prefset
         return self.prefs
             

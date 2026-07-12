@@ -2432,8 +2432,8 @@
       <constructor>
       <![CDATA[
         const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
-        const Services = Cu.import("resource://gre/modules/Services.jsm", {}).Services;
-        const XPCOMUtils = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
+        let paneServices = Cu.import("resource://gre/modules/Services.jsm", {}).Services;
+        let paneXPCOMUtils = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
 
         if (!this.hasAttribute("disablehistory")) {
           this.setAttribute("disablehistory", true);
@@ -2469,8 +2469,8 @@
           onSecurityChange: function WidgetLoad_onSecurityChange() {
             throw Components.Exception("Unexpected onSecurityChange", Cr.NS_ERROR_UNEXPECTED);
           },
-          QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                                 Ci.nsISupportsWeakReference]),
+          QueryInterface: paneXPCOMUtils.generateQI([Ci.nsIWebProgressListener,
+                                                     Ci.nsISupportsWeakReference]),
         };
 
         this._hookProgressListener();

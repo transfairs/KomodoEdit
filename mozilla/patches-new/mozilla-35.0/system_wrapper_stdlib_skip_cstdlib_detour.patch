@@ -1,0 +1,37 @@
+Bug: on modern GCC, a plain #include <stdlib.h> from C++ code can get
+rerouted through libstdc++'s own <cstdlib>-forwarding compat header
+instead of landing directly on the real C library header. That trips
+code (e.g. NSPR's prmem.h, included via this system_wrappers/stdlib.h)
+which just wants plain C declarations and never asked for C++ STL
+wrapping -- if the including translation unit defines XPCOM_GLUE /
+NS_NO_XPCOM / MOZ_NO_MOZALLOC, it detours into Mozilla's own wrapped
+dist/stl_wrappers/cstdlib and hits its "STL code can only be used with
+infallible ::operator new()" #error, even though no STL code is
+actually involved. Defining _GLIBCXX_INCLUDE_NEXT_C_HEADERS around the
+#include_next tells libstdc++'s compat header to walk straight through
+to the real header instead of detouring through <cstdlib>.
+Index: nsprpub/config/make-system-wrappers.pl
+--- a/nsprpub/config/make-system-wrappers.pl	Thu Jan 08 23:22:45 2015 -0500
++++ b/nsprpub/config/make-system-wrappers.pl	Sun Jul 12 06:13:53 2026 +0800
+@@ -19,7 +19,20 @@
+     open OUT, ">$output_dir/$_";
+     print OUT "#pragma GCC system_header\n";  # suppress include_next warning
+     print OUT "#pragma GCC visibility push(default)\n";
+-    print OUT "#include_next \<$_\>\n";
++    if ($_ eq "stdlib.h") {
++	# On modern GCC, a plain #include <stdlib.h> from C++ code can get
++	# rerouted through libstdc++'s <cstdlib>-forwarding compat header
++	# instead of landing on the real C library header, tripping code
++	# (e.g. NSPR's prmem.h) that just wants the plain C declarations
++	# and never asked for C++ STL wrapping at all.
++	# _GLIBCXX_INCLUDE_NEXT_C_HEADERS tells that compat header to walk
++	# straight through to the real one.
++	print OUT "#define _GLIBCXX_INCLUDE_NEXT_C_HEADERS\n";
++	print OUT "#include_next \<$_\>\n";
++	print OUT "#undef _GLIBCXX_INCLUDE_NEXT_C_HEADERS\n";
++    } else {
++	print OUT "#include_next \<$_\>\n";
++    }
+     print OUT "#pragma GCC visibility pop\n";
+     close OUT;
+ }

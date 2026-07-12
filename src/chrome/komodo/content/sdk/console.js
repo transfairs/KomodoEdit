@@ -23,12 +23,11 @@
     {
         // This is being loaded in a JS component or a JS module
         var { classes: Cc, interfaces: Ci, utils: Cu } = Components;
-        this.EXPORTED_SYMBOLS = ["console"];
+        if (!("EXPORTED_SYMBOLS" in this))
+            this.EXPORTED_SYMBOLS = ["console"];
         this.console = this;
         addObs = true;
     }
-
-    Cu.import("resource://gre/modules/Services.jsm");
 
     const {ConsoleAPI}  = Cu.import("resource://gre/modules/devtools/Console.jsm");
     const console       = new ConsoleAPI({innerID: "koConsoleWrapper"});

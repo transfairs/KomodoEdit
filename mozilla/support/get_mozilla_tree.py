@@ -3,11 +3,54 @@ Module to get the mozilla tree corresponding to a version number
 """
 
 import logging
-import urllib2, re, subprocess
+import re, subprocess
+try:
+    import urllib2
+except ImportError:
+    import urllib.request as urllib2
+    import urllib.error as _urllib_error
+    urllib2.HTTPError = _urllib_error.HTTPError
 import os.path
 import time
 from subprocess import check_call
-from distutils.version import LooseVersion, StrictVersion
+class StrictVersion(object):
+    def __init__(self, v):
+        if not re.match(r"^\d+(?:\.\d+){1,2}$", v):
+            raise ValueError(v)
+        self.vstring = v
+        self.version = tuple(int(p) for p in v.split("."))
+
+    def __eq__(self, other):
+        if not hasattr(other, "version"):
+            other = LooseVersion(str(other))
+        return self.version == other.version
+
+    def __lt__(self, other):
+        if not hasattr(other, "version"):
+            other = LooseVersion(str(other))
+        return self.version < other.version
+
+
+class LooseVersion(object):
+    def __init__(self, v):
+        self.vstring = v
+        bits = []
+        for part in re.findall(r"\d+|[a-zA-Z]+", v):
+            if part.isdigit():
+                bits.append(int(part))
+            else:
+                bits.append(part.lower())
+        self.version = tuple(bits)
+
+    def __eq__(self, other):
+        if not hasattr(other, "version"):
+            other = LooseVersion(str(other))
+        return self.version == other.version
+
+    def __lt__(self, other):
+        if not hasattr(other, "version"):
+            other = LooseVersion(str(other))
+        return self.version < other.version
 
 log = logging.getLogger("get_mozilla_tree")
 
@@ -27,7 +70,7 @@ def genTagsFromTrees(trees):
             for tag in g_tag_cache:
                 yield (tree, tag)
             continue
-        tags_url = "http://hg.mozilla.org/releases/%s/raw-tags" % (tree,)
+        tags_url = "https://hg.mozilla.org/releases/%s/raw-tags" % (tree,)
         # Hg isn't the most stable, so give it a few tries:
         for tries in range(5):
             try:
@@ -40,7 +83,10 @@ def genTagsFromTrees(trees):
             raise urllib2.HTTPError("Couldn't reach url %r", tags_url)
             
         tags = []
-        for line in response.read().splitlines():
+        payload = response.read()
+        if isinstance(payload, bytes):
+            payload = payload.decode('utf-8', errors='replace')
+        for line in payload.splitlines():
             tag, _ = line.strip().rsplit("\t", 1)
             tags.append(tag)
             yield (tree, tag)
@@ -98,7 +144,7 @@ def getTreeFromVersion(version=None):
             if ver == wanted_version:
                 log.debug("Found exact match in %s: %s", tree, tag)
                 return (tree, tag)
-        except ValueError, ex:
+        except ValueError as ex:
             # Not a correctly formatter version.
             continue
         if tree == "mozilla-release":
@@ -147,11 +193,11 @@ def getRepoFromTree(tree):
     """Get the URL of a tree given its name"""
     if tree != "mozilla-central":
         tree = "releases/%s" % (tree,)
-    return "http://hg.mozilla.org/%s" % (tree,)
+    return "https://hg.mozilla.org/%s" % (tree,)
 
 def getBundleFromTree(tree):
     """Get the URL of a bundle given a tree name"""
-    url = "http://ftp.mozilla.org/pub/mozilla.org/firefox/bundles/%s.hg" % (tree,)
+    url = "https://ftp.mozilla.org/pub/mozilla.org/firefox/bundles/%s.hg" % (tree,)
     wget = which("wget")
     filename = os.path.abspath("%s.hg" % (tree,))
     check_call([wget, "--progress=dot:mega", "-O", filename, url])
@@ -180,7 +226,10 @@ def fixRemoteRepo(tree, repo):
     """
     url = getRepoFromTree(tree)
     filename = os.path.join(repo, ".hg", "hgrc")
-    from ConfigParser import RawConfigParser
+    try:
+        from configparser import RawConfigParser
+    except ImportError:
+        from ConfigParser import RawConfigParser
     config = RawConfigParser()
     config.read([filename])
     if not config.has_section("paths"):

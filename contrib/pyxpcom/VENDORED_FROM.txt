@@ -1,0 +1,17 @@
+Vendored PyXPCOM source snapshot
+
+Upstream repository:
+  https://github.com/thereisonlyxul/pyxpcom
+
+Snapshot commit:
+  0c57798a05c0d845b76bbd7d91b83d107af2e50b
+
+Snapshot rationale:
+  Komodo 9.x / Gecko 35 build depends on PyXPCOM sources.
+  Original hg.mozilla.org/pyxpcom endpoint is unreliable/offline.
+  This vendored copy enables offline and reproducible builds.
+
+Refresh process:
+  1. Clone/update upstream in a temp directory.
+  2. Copy sources into contrib/pyxpcom (without .git metadata).
+  3. Update this file with commit hash and date.

@@ -66,6 +66,9 @@ ko.utils = {};
         var appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].
                          getService(Ci.nsIAppStartup);
         ko.prefs.setBooleanPref("komodo_normal_shutdown", true);
+        Cc["@activestate.com/koPrefService;1"]
+            .getService(Ci.koIPrefService)
+            .saveState();
         appStartup.quit(Ci.nsIAppStartup.eAttemptQuit |  Ci.nsIAppStartup.eRestart);
     };
 

@@ -4,8 +4,8 @@
 if (!window.Cc) window.Cc = Components.classes;
 if (!window.Ci) window.Ci = Components.interfaces;
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
+var emOverlayXPCOMUtils = Components.utils.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
+var emOverlayServices = Components.utils.import("resource://gre/modules/Services.jsm", {}).Services;
 
 // Main observer object - all the interesting logic is here
 var gkoAMActionObserver = {
@@ -179,7 +179,7 @@ var gkoAMActionObserver = {
   // complete, started doesn't need notification, the default behaviour is fine
 
   // XPCOM goop
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
+  QueryInterface: emOverlayXPCOMUtils.generateQI([Ci.nsIObserver]),
 
   // list of addon-install topics
   get topics() [
@@ -202,7 +202,7 @@ var gkoAMActionObserver = {
                  .getService(Ci.nsIStringBundleService)
                  .createBundle("chrome://branding/locale/brand.properties")
                  .GetStringFromName("brandShortName"),
-  get appVersion() Services.appinfo.version
+  get appVersion() emOverlayServices.appinfo.version
 
 };
 
@@ -217,7 +217,7 @@ addEventListener("load", function() {
                 function(elem) { elem.setAttribute('collapsed', 'true')});
 
   for each (var topic in gkoAMActionObserver.topics) {
-    Services.obs.addObserver(gkoAMActionObserver, topic, false);
+    emOverlayServices.obs.addObserver(gkoAMActionObserver, topic, false);
   }
   var box = document.createElement("notificationbox");
   box.setAttribute("flex", 1);
@@ -282,7 +282,7 @@ addEventListener("load", function() {
         // For some odd reason |target| can be quoted...
         return (target.replace(/["']/g, '') == "_blank") ? "_top" : target;
       },
-      QueryInterface: XPCOMUtils.generateQI([Ci.nsIXULBrowserWindow])
+      QueryInterface: emOverlayXPCOMUtils.generateQI([Ci.nsIXULBrowserWindow])
     };
   }
 }, false);
@@ -290,7 +290,7 @@ addEventListener("load", function() {
 addEventListener("unload", function() {
   for each (var topic in gkoAMActionObserver.topics) {
     try {
-      Services.obs.removeObserver(gkoAMActionObserver, topic);
+      emOverlayServices.obs.removeObserver(gkoAMActionObserver, topic);
     } catch (ex) { /* silent failure */ }
   }
 }, false);

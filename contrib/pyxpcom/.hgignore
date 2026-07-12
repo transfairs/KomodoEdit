@@ -1,0 +1,16 @@
+# .hgignore - List of filenames hg should ignore
+
+# Filenames that should be ignored wherever they appear
+~$
+\.pyc$
+(^|/)TAGS$
+(^|/)\.DS_Store$
+
+# User files that may appear at the root
+^configure$
+^config\.cache$
+^config\.log$
+^ID$
+
+# Build directories
+^obj

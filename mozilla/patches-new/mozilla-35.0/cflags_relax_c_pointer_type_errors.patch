@@ -1,0 +1,28 @@
+Bug: GCC 14+ made -Wimplicit-function-declaration, -Wimplicit-int, and
+-Wincompatible-pointer-types errors by default when compiling C (they
+used to be warnings). That newly trips up pre-C99-strict vendored C
+code (cairo, pixman, and likely others) which predates that default
+and was never explicitly -Werror'd for these historically. Keep them
+as non-fatal warnings so this old C code still builds against modern
+toolchains, matching how it always behaved until the GCC default changed.
+Index: configure.in
+--- a/configure.in	Thu Jan 08 23:22:45 2015 -0500
++++ b/configure.in	Sun Jul 12 05:06:58 2026 +0800
+@@ -1459,6 +1459,17 @@
+     _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=trigraphs"
+     _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Werror=unknown-pragmas"
+ 
++    # GCC 14+ made -Wimplicit-function-declaration, -Wimplicit-int, and
++    # -Wincompatible-pointer-types errors by default for C (previously
++    # just warnings). This trips up pre-C99-strict vendored C code (e.g.
++    # cairo, pixman) that predates that default and was never -Werror'd
++    # for these historically. Keep them as (non-fatal) warnings here so
++    # this old code still builds against modern toolchains.
++    _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wno-error=implicit-function-declaration"
++    _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wno-error=implicit-int"
++    _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wno-error=incompatible-pointer-types"
++    _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wno-error=int-conversion"
++
+     # Turn off the following warnings that -Wall turns on:
+     # -Wno-unused - lots of violations in third-party code
+     #

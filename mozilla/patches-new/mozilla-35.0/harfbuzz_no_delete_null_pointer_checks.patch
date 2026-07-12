@@ -1,0 +1,42 @@
+Bug: Komodo crashes on startup (SIGSEGV inside
+hb_unicode_funcs_destroy, called from hb_buffer_t::reset() via
+hb_buffer_create(), gfx/harfbuzz/src/hb-unicode.cc /
+gfx/harfbuzz/src/hb-buffer.cc) under modern GCC (15+).
+
+This vendored harfbuzz version relies on `if (unlikely (!this ||
+this->is_inert ())) return false;` guards at the top of several
+hb_object_header_t methods (hb-object-private.hh) to make calls like
+hb_unicode_funcs_destroy(nullptr) -- which legitimately happens on
+every hb_buffer_create(), since hb_buffer_t::reset() unconditionally
+destroys the (still null, freshly calloc'd) `unicode` field before
+setting it -- safe no-ops.
+
+Modern GCC's more aggressive undefined-behavior-based optimization is
+allowed to delete "this == nullptr" checks inside non-static member
+functions entirely, since invoking a non-static member function
+through a null pointer is itself undefined behavior by the C++
+standard -- and at -Os, it does, turning this into a real null-pointer
+dereference. Build this directory with -fno-delete-null-pointer-checks
+to keep the guards the code relies on.
+Index: gfx/harfbuzz/src/moz.build
+--- a/gfx/harfbuzz/src/moz.build	Thu Jan 08 23:22:45 2015 -0500
++++ b/gfx/harfbuzz/src/moz.build	Sun Jul 12 13:36:02 2026 +0800
+@@ -60,6 +60,18 @@
+ 
+ MSVC_ENABLE_PGO = True
+ 
++if CONFIG['GNU_CC'] or CONFIG['GNU_CXX']:
++    # This harfbuzz version relies on `if (unlikely (!this || ...))
++    # return false;` guards at the top of several hb_object_header_t
++    # methods to make calls like hb_unicode_funcs_destroy(nullptr) (hit
++    # on every hb_buffer_create(), via hb_buffer_t::reset()) safe
++    # no-ops. Modern GCC's more aggressive UB-based optimization is
++    # allowed to -- and does, at -Os -- delete "this == nullptr" checks
++    # entirely, since invoking a non-static member function through a
++    # null pointer is itself undefined behavior, turning this into a
++    # real null-pointer crash. Keep the checks.
++    CXXFLAGS += ['-fno-delete-null-pointer-checks']
++
+ FINAL_LIBRARY = 'gkmedias'
+ 
+ DEFINES['PACKAGE_VERSION'] = '"moz"'

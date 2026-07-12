@@ -166,7 +166,7 @@ if (typeof(ko.projects)=='undefined') {
     var _doUseTemplate = (view, template) =>
     {
         var savedValue = template.value;
-        var view = require("ko/views").current().get();
+        view = view || require("ko/views").current().get();
         if (!view || view.getAttribute('type') != 'editor') return;
         var scimoz = view.scimoz;
         

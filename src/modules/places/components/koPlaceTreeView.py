@@ -62,6 +62,24 @@ from koUnicodeEncoding import autoDetectEncoding
 log = logging.getLogger("koPlaceTreeView")
 #log.setLevel(logging.DEBUG)
 
+_ifn = components.interfaces.koIFileNotificationService
+def _ifn_const(name, default):
+    try:
+        return getattr(_ifn, name)
+    except AttributeError:
+        return default
+
+_WATCH_DIR = _ifn_const("WATCH_DIR", 1)
+_FS_FILE_CREATED = _ifn_const("FS_FILE_CREATED", 0x01)
+_FS_FILE_DELETED = _ifn_const("FS_FILE_DELETED", 0x02)
+_FS_FILE_MODIFIED = _ifn_const("FS_FILE_MODIFIED", 0x04)
+_FS_DIR_CREATED = _ifn_const("FS_DIR_CREATED", 0x10)
+_FS_DIR_DELETED = _ifn_const("FS_DIR_DELETED", 0x20)
+_FS_UNKNOWN = _ifn_const("FS_UNKNOWN", 0x80)
+
+del _ifn
+del _ifn_const
+
 
 #---- Global functions
 def _umaskFromPermissions(rfi):
@@ -303,21 +321,20 @@ from Queue import Queue
 # some constants used for live folders
 # from koKPFTreeView.p.py
 _rebuildDirFlags = \
-    components.interfaces.koIFileNotificationService.FS_FILE_CREATED | \
-    components.interfaces.koIFileNotificationService.FS_FILE_DELETED | \
-    components.interfaces.koIFileNotificationService.FS_UNKNOWN
+    _FS_FILE_CREATED | \
+    _FS_FILE_DELETED | \
+    _FS_UNKNOWN
 _rebuildParentFlags = \
-    components.interfaces.koIFileNotificationService.FS_DIR_CREATED | \
-    components.interfaces.koIFileNotificationService.FS_DIR_DELETED
+    _FS_DIR_CREATED | \
+    _FS_DIR_DELETED
 _createdFlags = \
-    components.interfaces.koIFileNotificationService.FS_FILE_CREATED | \
-    components.interfaces.koIFileNotificationService.FS_DIR_CREATED
+    _FS_FILE_CREATED | \
+    _FS_DIR_CREATED
 _deletedFlags = \
-    components.interfaces.koIFileNotificationService.FS_FILE_DELETED | \
-    components.interfaces.koIFileNotificationService.FS_DIR_DELETED
+    _FS_FILE_DELETED | \
+    _FS_DIR_DELETED
 _rebuildFlags = _rebuildDirFlags | _rebuildParentFlags
-_notificationsToReceive = _rebuildFlags | \
-    components.interfaces.koIFileNotificationService.FS_FILE_MODIFIED
+_notificationsToReceive = _rebuildFlags | _FS_FILE_MODIFIED
 
 class _UndoCommand():
     def __init__(self):
@@ -492,7 +509,7 @@ class KoPlaceTreeView(TreeView):
         try:
             # This will call the fileNotification method (not 'observe'!)
             self.notificationSvc.addObserver(self, path,
-                                             components.interfaces.koIFileNotificationService.WATCH_DIR,
+                                             _WATCH_DIR,
                                              _notificationsToReceive)
         except:
             log.exception("Can't watch path: %s", path)
@@ -718,7 +735,7 @@ class KoPlaceTreeView(TreeView):
                 # track individual files.  View will be refreshed when a new
                 # place (which is always the URI for a directory) starts with
                 # the pending uri
-                if flags & components.interfaces.koIFileNotificationService.FS_FILE_DELETED:
+                if flags & _FS_FILE_DELETED:
                     uri = self._getURIParent(uri) or uri
                 self._refreshOnUpdateCurrentPlace.add(self._endsWithSlash(uri))
         else:

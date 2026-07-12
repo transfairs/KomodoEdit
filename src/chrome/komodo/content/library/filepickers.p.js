@@ -63,22 +63,22 @@ ko.filepicker = {};
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+var filepickersXPCOMUtils = Components.utils.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
 
 var local = {};
 
-XPCOMUtils.defineLazyGetter(local, "log", function() ko.logging.getLogger("filepickers"));
+filepickersXPCOMUtils.defineLazyGetter(local, "log", function() ko.logging.getLogger("filepickers"));
 
-XPCOMUtils.defineLazyGetter(local, "bundle", function() Cc["@mozilla.org/intl/stringbundle;1"]
+filepickersXPCOMUtils.defineLazyGetter(local, "bundle", function() Cc["@mozilla.org/intl/stringbundle;1"]
                                                         .getService(Ci.nsIStringBundleService)
                                                         .createBundle("chrome://komodo/locale/library.properties"));
 
-XPCOMUtils.defineLazyGetter(local, "globalPrefs", function() Cc["@activestate.com/koPrefService;1"]
+filepickersXPCOMUtils.defineLazyGetter(local, "globalPrefs", function() Cc["@activestate.com/koPrefService;1"]
                                                              .getService(Ci.koIPrefService).prefs);
 
-XPCOMUtils.defineLazyGetter(local, "prefs", function() local.globalPrefs.getPref("filepickers.defaultDirs"));
+filepickersXPCOMUtils.defineLazyGetter(local, "prefs", function() local.globalPrefs.getPref("filepickers.defaultDirs"));
 
-XPCOMUtils.defineLazyGetter(local, "osPathSvc", function() Cc["@activestate.com/koOsPath;1"]
+filepickersXPCOMUtils.defineLazyGetter(local, "osPathSvc", function() Cc["@activestate.com/koOsPath;1"]
                                                             .getService(Ci.koIOsPath));
 
 //---- internal support stuff

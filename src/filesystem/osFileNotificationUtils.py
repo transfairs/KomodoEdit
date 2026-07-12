@@ -53,19 +53,26 @@ try:
     from xpcom import components, COMException, ServerException, nsError
     from xpcom.server import UnwrapObject
     from xpcom.client import WeakReference
-    WATCH_FILE = components.interfaces.koIFileNotificationService.WATCH_FILE
-    WATCH_DIR = components.interfaces.koIFileNotificationService.WATCH_DIR
-    WATCH_DIR_RECURSIVE = components.interfaces.koIFileNotificationService.WATCH_DIR_RECURSIVE
-    FS_FILE_CREATED = components.interfaces.koIFileNotificationService.FS_FILE_CREATED
-    FS_FILE_DELETED = components.interfaces.koIFileNotificationService.FS_FILE_DELETED
-    FS_FILE_MODIFIED = components.interfaces.koIFileNotificationService.FS_FILE_MODIFIED
-    FS_DIR_CREATED = components.interfaces.koIFileNotificationService.FS_DIR_CREATED
-    FS_DIR_DELETED = components.interfaces.koIFileNotificationService.FS_DIR_DELETED
-    FS_DIR_MODIFIED = components.interfaces.koIFileNotificationService.FS_DIR_MODIFIED
-    FS_UNKNOWN = components.interfaces.koIFileNotificationService.FS_UNKNOWN
-    FS_NOTIFY_ALL = components.interfaces.koIFileNotificationService.FS_NOTIFY_ALL
-    FS_PATH_WAS_DELETED = components.interfaces.koIFileNotificationService.FS_FILE_DELETED | \
-                          components.interfaces.koIFileNotificationService.FS_DIR_DELETED
+    _ifn = components.interfaces.koIFileNotificationService
+    def _ifn_const(name, default):
+        try:
+            return getattr(_ifn, name)
+        except AttributeError:
+            return default
+    WATCH_FILE = _ifn_const("WATCH_FILE", 0)
+    WATCH_DIR = _ifn_const("WATCH_DIR", 1)
+    WATCH_DIR_RECURSIVE = _ifn_const("WATCH_DIR_RECURSIVE", 2)
+    FS_FILE_CREATED = _ifn_const("FS_FILE_CREATED", 0x01)
+    FS_FILE_DELETED = _ifn_const("FS_FILE_DELETED", 0x02)
+    FS_FILE_MODIFIED = _ifn_const("FS_FILE_MODIFIED", 0x04)
+    FS_DIR_CREATED = _ifn_const("FS_DIR_CREATED", 0x10)
+    FS_DIR_DELETED = _ifn_const("FS_DIR_DELETED", 0x20)
+    FS_DIR_MODIFIED = _ifn_const("FS_DIR_MODIFIED", 0x40)
+    FS_UNKNOWN = _ifn_const("FS_UNKNOWN", 0x80)
+    FS_NOTIFY_ALL = _ifn_const("FS_NOTIFY_ALL", 0xFF)
+    FS_PATH_WAS_DELETED = FS_FILE_DELETED | FS_DIR_DELETED
+    del _ifn
+    del _ifn_const
     haveXPCOM = 1
 except ImportError, e:
     # Standalone mode, used for testing

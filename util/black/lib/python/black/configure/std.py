@@ -434,7 +434,7 @@ class ActivePerlBuild(Datum):
                 o = os.popen("%s -v" % perlExe)
                 perlVersionDump = o.read()
                 buildMatch = re.compile(
-                    "Binary build (\d+) provided by ActiveState").\
+                    r"Binary build (\d+) provided by ActiveState").\
                     search(perlVersionDump)
                 if buildMatch:
                     self.value = buildMatch.group(1) 

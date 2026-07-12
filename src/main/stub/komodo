@@ -22,8 +22,66 @@ if test -f "$INSTALLDIR/../bin/is_dev_tree.txt"; then
 else
     mozdir=$INSTALLDIR/lib/mozilla
 fi
-unset INSTALLDIR
 executable="$mozdir/komodo"
+
+# Build a safe runtime library path before launching Komodo.
+# We keep package-local locations first, then append filtered host paths.
+safe_ld=""
+add_ld_path() {
+    _p="$1"
+    [ -n "$_p" ] || return 0
+    [ -d "$_p" ] || return 0
+    case ":$safe_ld:" in
+        *":$_p:"*) return 0 ;;
+    esac
+    if [ -n "$safe_ld" ]; then
+        safe_ld="$safe_ld:$_p"
+    else
+        safe_ld="$_p"
+    fi
+}
+
+add_ld_path "$mozdir"
+add_ld_path "$mozdir/../lib"
+add_ld_path "$mozdir/extensions/python/dist/bin"
+add_ld_path "$mozdir/extensions/python/dist/lib"
+add_ld_path "$INSTALLDIR/lib/mozilla"
+add_ld_path "$INSTALLDIR/lib/python/lib"
+
+# Keep known-good system runtime locations available.
+add_ld_path "/usr/lib/x86_64-linux-gnu"
+add_ld_path "/lib/x86_64-linux-gnu"
+
+export LD_LIBRARY_PATH="$safe_ld"
+unset safe_ld
+unset _p
+unset add_ld_path
+
+# Drop host toolkit overrides that can pull Snap GTK/GIO modules into Komodo.
+unset GTK_PATH
+unset GTK_EXE_PREFIX
+unset GTK_IM_MODULE_FILE
+unset GTK_MODULES
+unset GIO_MODULE_DIR
+unset LOCPATH
+unset GSETTINGS_SCHEMA_DIR
+
+# Clear internal XRE/Komodo restart/profile vars from the parent env.
+# If these leak into a fresh launcher call, koStart can skip argv parsing,
+# which drops file-open arguments and breaks single-instance handoff.
+unset _KOMODO_VERUSERDATADIR
+unset XRE_PROFILE_PATH
+unset _XRE_USERAPPDATADIR
+unset XRE_PROFILE_LOCAL_PATH
+unset XRE_PROFILE_NAME
+unset XRE_START_OFFLINE
+unset XRE_BINARY_PATH
+unset MOZ_APP_RESTART
+unset MOZ_LAUNCHED_CHILD
+unset MOZ_CRASHREPORTER_RESTART_ARG_1
+unset MOZ_CRASHREPORTER_EVENTS_DIRECTORY
+unset INSTALLDIR
+
 exe_type=`file "$executable"`
 warn_arch ( ) {
     # This function just spits out a warning if we're trying to run a bad binary
@@ -76,9 +134,4 @@ unset machine_arch
 unset wanted_arch
 unset exe_type
 unset mozdir
-"$executable" "$@" &
-if test `uname` = "SunOS"; then
-    sleep 1
-else
-    sleep 0.3
-fi
+exec "$executable" "$@"

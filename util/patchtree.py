@@ -161,7 +161,14 @@ import re
 import tempfile
 import logging
 import getopt
-import imp
+try:
+    import importlib.util
+except ImportError:
+    importlib = None
+try:
+    import imp
+except ImportError:
+    imp = None
 import pprint
 import glob
 import types
@@ -184,6 +191,15 @@ try:
     import which
 except SyntaxError:
     import which21 as which
+
+try:
+    basestring
+except NameError:
+    basestring = str
+if not hasattr(types, "StringType"):
+    types.StringType = str
+if not hasattr(types, "UnicodeType"):
+    types.UnicodeType = str
 
 
 
@@ -231,6 +247,19 @@ def _run(argv, cwd=None, stdin=None):
         raise Error("no subprocess module to work with")
     return stdout, stderr, retval
 
+
+def _load_module_from_file(name, path):
+    if importlib is not None:
+        spec = importlib.util.spec_from_file_location(name, path)
+        if spec is None:
+            raise ImportError(path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    if imp is None:
+        raise ImportError(path)
+    return imp.load_source(name, path)
+
 def _getPatchInfo(dirname):
     if "__patchinfo__" in sys.modules:
         del sys.modules["__patchinfo__"]
@@ -240,13 +269,20 @@ def _getPatchInfo(dirname):
         except EnvironmentError:
             pass
     try:
-        file, path, desc = imp.find_module("__patchinfo__", [dirname])
-    except ImportError, ex:
-        return None
-    try:
-        patchinfo = imp.load_module("__patchinfo__", file, path, desc)
+        # prefer source file if present
+        candidate = None
+        for ext in ('.py', '.pyc', '.pyo'):
+            p = os.path.join(dirname, '__patchinfo__' + ext)
+            if os.path.exists(p):
+                candidate = p
+                break
+        if candidate is None:
+            return None
+        patchinfo = _load_module_from_file('__patchinfo__', candidate)
         return patchinfo
-    except SyntaxError, ex:
+    except ImportError as ex:
+        return None
+    except SyntaxError as ex:
         errinfo = ex.args[1]
         raise Error("syntax error in patchinfo file: %s:%d: %r"
                     % (errinfo[0], errinfo[1], errinfo[3]))
@@ -488,8 +524,8 @@ def _getPathsInPatch(patch, argv):
     filter_expressions = (
         re.compile(r"\s+\(revision \d+\)$"),
         re.compile(r"\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+"
-                     "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+"
-                     "\d+\s+(?:\d+:?)+\s+\d+$")
+                   r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+"
+                   r"\d+\s+(?:\d+:?)+\s+\d+$")
     )
     depth = 0
     for argi, arg in enumerate(argv or []):
@@ -656,9 +692,10 @@ def _loadPatchLog(logDir, logFilename=None):
         # gets imported instead, causing problems.
         os.remove(patchLogPyc)
     try:
-        file, path, desc = imp.find_module(patchLogName, [logDir])
-        patchLog = imp.load_module(patchLogName, file, path, desc)
-    except ImportError, ex:
+        if not os.path.isfile(patchLogFile):
+            raise ImportError(patchLogFile)
+        patchLog = _load_module_from_file(patchLogName, patchLogFile)
+    except ImportError as ex:
         raise Error("could not find a patch log in the given log "
                     "directory, '%s': %s" % (logDir, ex))
     return patchLog
@@ -1010,7 +1047,7 @@ def patch(patchesDir, sourceDir, config=None, logDir=None, dryRun=0,
             invalidActions = patchLog.actions[firstInvalidActionIndex:]
 
             if firstInvalidActionIndex > 0:
-                expected_md5 = md5(repr(patchLog.actions)).hexdigest()
+                expected_md5 = md5(repr(patchLog.actions).encode("utf-8")).hexdigest()
                 logFileFullName = join(logDir, logFilename)
                 log.debug("full name: %s", logFileFullName)
                 with open(join(sourceDir, ".patchtree-state"), "a+") as state_file:
@@ -1149,7 +1186,7 @@ actions = %s
                     if len(parts) != 2:
                         continue # invalid state?
                     state[parts[0]] = parts[1]
-            state[logFileFullName] = md5(repr(actions)).hexdigest()
+            state[logFileFullName] = md5(repr(actions).encode("utf-8")).hexdigest()
             with open(join(sourceDir, ".patchtree-state"), "w") as state_file:
                 for k, v in state.items():
                     state_file.write("%s %s\n" % (k, v))
@@ -1181,7 +1218,7 @@ actions = %s
         log.debug("removing temporary working dir '%s'", tempDir)
         try:
             sh.rm(tempDir)
-        except EnvironmentError, ex:
+        except EnvironmentError as ex:
             log.warn("could not remove temp working dir '%s': %s",
                      tempDir, ex)
         if sys.platform.startswith("win") and oldTmpDir is not None:
@@ -1198,7 +1235,7 @@ def main(argv):
         optlist, args = getopt.getopt(argv[1:], "hvVc:L:R",
             ["help", "verbose", "version", "config=", "log-dir=",
              "dry-run"])
-    except getopt.GetoptError, msg:
+    except getopt.GetoptError as msg:
         raise Error("patchtree: %s" % str(msg))
     config = None
     logDir = None
@@ -1209,24 +1246,21 @@ def main(argv):
             sys.stdout.write(__doc__)
             return 0
         elif opt in ("-V", "--version"):
-            print "patchtree %s" % __version__
+            print("patchtree %s" % __version__)
             return 0
         elif opt in ("-v", "--verbose"):
             log.setLevel(logging.DEBUG)
         elif opt in ("-L", "--log-dir"):
             logDir = optarg
         elif opt in ("-c", "--config"):
-            ext = os.path.splitext(optarg)[1]
-            if sys.platform == "win32":
-                ext = ext.lower()
-            for desc in imp.get_suffixes():
-                if desc[0] == ext:
-                    fin = open(optarg, 'r')
-                    config = imp.load_module("config", fin, optarg, desc)
-                    break
-            else:
+            # Load the given config file as a module named 'config'
+            if not os.path.isfile(optarg):
                 raise Error("given config file does not look like an "
                             "importable Python module: %s" % optarg)
+            try:
+                config = _load_module_from_file('config', optarg)
+            except Exception as ex:
+                raise Error("could not import config file %s: %s" % (optarg, ex))
         elif opt in ("--dry-run",):
             dryRun = 1
         elif opt in ("-R",):

@@ -35,7 +35,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 xtk.include('domutils');
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 if (typeof(ko)=='undefined') {
     var ko = {};
@@ -179,23 +178,13 @@ this.restoreWorkspace = function view_restoreWorkspace(currentWindow)
     // Must be called after the Mozilla persist state (onload) is done.
     setTimeout(ko.uilayout.restoreWindowState, 1);
 
-    // If there is a workspace to restore - prompt the user to see if they wish
-    // to restore it.
+    // If there is a workspace to restore, do so automatically unless the user
+    // explicitly opted out of restoration.
     if (!ko.prefs.hasPref(multiWindowWorkspacePrefName)) {
         return;
-    } else if (!was_normal_shutdown) {   // Komodo crashed
-        if (ko.prefs.getBooleanPref("donotask_restore_workspace") &&
-            ko.prefs.getStringPref("donotask_action_restore_workspace") == "No") {
-            // The user has explictly asked never to restore the workspace.
-            return;
-        }
-        var prompt = _bundle.GetStringFromName("restoreWorkspaceAfterCrash.prompt");
-        var title = _bundle.GetStringFromName("restoreWorkspaceAfterCrash.title");
-        if (ko.dialogs.yesNo(prompt, null, null, title) == "No") {
-            return;
-        }
-    } else if (ko.dialogs.yesNo(_bundle.GetStringFromName("doYouWantToOpenRecentFilesAndProjects.prompt"),
-                                null, null, null, "restore_workspace") == "No") {
+    }
+    if (ko.prefs.getBooleanPref("donotask_restore_workspace") &&
+        ko.prefs.getStringPref("donotask_action_restore_workspace") == "No") {
         return;
     }
 
@@ -379,6 +368,7 @@ function _checkWindowCoordinateBounds(candidateValue,
 
 function _restoreWindowPosition(currentWindow, coordinates) {
     const _nsIDOMChromeWindow = Components.interfaces.nsIDOMChromeWindow;
+    var forceNormalWindow = false;
     var windowState = (coordinates.hasPrefHere('windowState')
                        ? coordinates.getLongPref('windowState')
                        : _nsIDOMChromeWindow.STATE_NORMAL);
@@ -392,11 +382,16 @@ function _restoreWindowPosition(currentWindow, coordinates) {
     var outerWidth = coordinates.getLongPref('outerWidth');
     if (Math.abs(screenX) > 3 * screenWidth || Math.abs(screenY) > 3 * screenHeight) {
         screenX = screenY = 0;
+        forceNormalWindow = true;
     }
     if (currentWindow.screenX != screenX || currentWindow.screenY != screenY) {
         currentWindow.moveTo(screenX, screenY);
     }
     if (currentWindow.outerHeight != outerHeight || currentWindow.outerWidth != outerWidth) {
+        // Reject pathological persisted geometry that can leave the UI invisible.
+        if (outerHeight < 200 || outerWidth < 300) {
+            forceNormalWindow = true;
+        }
         var newHeight = _checkWindowCoordinateBounds(outerHeight, 0,
                                                      .2 * screenHeight,
                                                      screenHeight,
@@ -406,6 +401,9 @@ function _restoreWindowPosition(currentWindow, coordinates) {
                                                     screenWidth,
                                                     .9 * screenWidth);
         currentWindow.resizeTo(newWidth, newHeight);
+    }
+    if (forceNormalWindow) {
+        windowState = _nsIDOMChromeWindow.STATE_NORMAL;
     }
     if (windowState == _nsIDOMChromeWindow.STATE_MINIMIZED) {
         currentWindow.minimize();

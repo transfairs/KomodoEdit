@@ -52,6 +52,21 @@ import osFilePollingNotifier
 log = logging.getLogger("koFileNotificationService")
 #log.setLevel(logging.DEBUG)
 
+_ifn = components.interfaces.koIFileNotificationService
+def _ifn_const(name, default):
+    try:
+        return getattr(_ifn, name)
+    except AttributeError:
+        return default
+
+_WATCH_FILE = _ifn_const("WATCH_FILE", 0)
+_FS_FILE_CREATED = _ifn_const("FS_FILE_CREATED", 0x01)
+_FS_FILE_DELETED = _ifn_const("FS_FILE_DELETED", 0x02)
+_FS_FILE_MODIFIED = _ifn_const("FS_FILE_MODIFIED", 0x04)
+
+del _ifn
+del _ifn_const
+
 class koFileNotificationService:
     """An xpcom service for watching files for changes and alerting when
        a change occurs."""
@@ -71,9 +86,9 @@ class koFileNotificationService:
         self.__enabled = self.__prefs.getBoolean("fileNotificationServiceEnabled", True)
 
         # Short names for flags
-        self.available_file_flags = components.interfaces.koIFileNotificationService.FS_FILE_CREATED | \
-                                    components.interfaces.koIFileNotificationService.FS_FILE_DELETED | \
-                                    components.interfaces.koIFileNotificationService.FS_FILE_MODIFIED
+        self.available_file_flags = _FS_FILE_CREATED | \
+                        _FS_FILE_DELETED | \
+                        _FS_FILE_MODIFIED
 
         # Setup the OS dependant (underlying) services
         self.__polling_service = None
@@ -177,7 +192,7 @@ class koFileNotificationService:
         if not nsIFile.exists():
             raise ServerException(nsError.NS_ERROR_FAILURE,
                                   "Invalid path, was unable to locate.")
-        if watch_type == components.interfaces.koIFileNotificationService.WATCH_FILE:
+        if watch_type == _WATCH_FILE:
             if not nsIFile.isFile():
                 raise ServerException(nsError.NS_ERROR_FAILURE,
                                       "The path for a WATCH_FILE type, must be a file.")

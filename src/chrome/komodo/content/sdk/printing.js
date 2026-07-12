@@ -19,7 +19,7 @@ const {Cc, Ci, Cu, Cr} = require("chrome");
 var _gBrowserLoadListener = null;
 
 const log = require("ko/logging").getLogger("printing");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+const {XPCOMUtils} = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {});
 
 // Get window/KO
 var _window;

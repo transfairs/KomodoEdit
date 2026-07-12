@@ -542,7 +542,11 @@ sub main::doscripts {
 	my($path) = $priv::self->{script}->rsrcpath;
 	$dir::cwd = $priv::self->{script}->{dir};
 	if (-f $path) {
-	    do $path;
+        my $dopath = $path;
+        if ($dopath !~ m{[\\/]} && $dopath !~ m{^\.}) {
+        $dopath = "./$dopath";
+        }
+        do $dopath;
 	    if ($@) {
 		chomp($@);
 		my $err = ($@ =~ /\n/ms) ? ":\n$@" : " ($@)";

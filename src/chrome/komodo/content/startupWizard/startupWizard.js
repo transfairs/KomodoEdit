@@ -7,6 +7,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
     var $ = require("ko/dom").window(window);
     var prefs = require("ko/prefs");
     var platform = require("sdk/system").platform;
+    var samplePreviewEnabled = platform != "linux";
     
     var fields = {};
 
@@ -24,8 +25,12 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
         wizard.on("wizardnext", this.onNext);
         
         $("window").append(wizard);
+
+        if ( ! samplePreviewEnabled)
+            $("#sample-stack").remove();
         
-        this.loadSample();
+        if (samplePreviewEnabled)
+            this.loadSample();
         
         // OSX in particular likes to hide our window, force it not to
         try
@@ -258,9 +263,11 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
             require("ko/ui/label").create("Color Scheme: "),
             fields.colorScheme
         ]);
-        fields.colorScheme.onChange(this.loadSample);
+        if (samplePreviewEnabled)
+            fields.colorScheme.onChange(this.loadSample);
         
-        appearanceGroupbox.addRow($("#sample-stack"));
+        if (samplePreviewEnabled)
+            appearanceGroupbox.addRow($("#sample-stack"));
         
         // I don't like changes
         appearanceGroupbox.addRow(fields.classicMode);
@@ -409,6 +416,9 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
     
     this.loadSample = () =>
     {
+        if ( ! samplePreviewEnabled)
+            return;
+
         var sample = $('#sample');
         
         if ( ! ("initialized" in this.loadSample))
@@ -440,9 +450,36 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
         var scheme = schemeService.getScheme(fields.colorScheme.value());
         scheme.applyScheme(scintilla, "Python", encoding, alternateType);
     };
+
+    this.disposeSample = () =>
+    {
+        if ( ! samplePreviewEnabled)
+            return;
+
+        try
+        {
+            var sample = $('#sample').element();
+            if (sample && sample.scimoz)
+            {
+                // Switch off read-only and clear text to minimize pending work
+                // during wizard shutdown.
+                sample.scimoz.readOnly = 0;
+                sample.scimoz.text = "";
+            }
+
+            if (sample && typeof sample.close == "function")
+                sample.close();
+        }
+        catch (e)
+        {
+            log.exception(e);
+        }
+    };
     
     this.onFinish = () =>
     {
+        this.disposeSample();
+
         var koCS = require("ko/colorscheme");
         
         prefs.setString("widget-scheme", fields.colorScheme.value());
@@ -473,12 +510,58 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
             prefs.deletePref("autoAbbreviationTriggerCharacters");
         else
             prefs.setString("autoAbbreviationTriggerCharacters", "\\t");
+
+        // Ensure first-run setup always transitions to a real Komodo main window.
+        // Some Linux/X11 runs close the wizard but never surface/create the main UI.
+        try {
+            setTimeout(() => {
+                try {
+                    let wm = Cc["@mozilla.org/appshell/window-mediator;1"]
+                        .getService(Ci.nsIWindowMediator);
+                    let main = wm.getMostRecentWindow("Komodo");
+
+                    if (!main || main.closed || main === window) {
+                        try {
+                            window.openDialog(
+                                "chrome://komodo/content",
+                                "_blank",
+                                "chrome,all,dialog=no",
+                                { mainWindow: true }
+                            );
+                        } catch (openErr) {
+                            log.exception(openErr);
+                        }
+                    }
+
+                    // Try again shortly after openDialog so WM state settles.
+                    setTimeout(() => {
+                        try {
+                            let resolvedMain = wm.getMostRecentWindow("Komodo");
+                            if (resolvedMain && !resolvedMain.closed) {
+                                if (typeof resolvedMain.restore == "function")
+                                    resolvedMain.restore();
+                                resolvedMain.resizeTo(1200, 800);
+                                resolvedMain.moveTo(100, 80);
+                                resolvedMain.focus();
+                            }
+                        } catch (focusErr) {
+                            log.exception(focusErr);
+                        }
+                    }, 200);
+                } catch (e) {
+                    log.exception(e);
+                }
+            }, 0);
+        } catch (e) {
+            log.exception(e);
+        }
         
         return true;
     };
     
     this.onCancel = () =>
     {
+        this.disposeSample();
         window.dispatchEvent(new Event('wizardfinish'));
         return true;
     };

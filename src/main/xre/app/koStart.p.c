@@ -84,15 +84,17 @@
 // #ifndef PP_KO_SHORT_VERSION
 // #error "this file cannot be preprocessed by 'bk build quick'"
 // #endif
-#define KO_SHORT_VERSION "PP_KO_SHORT_VERSION"
-#define KO_MARKETING_SHORT_VERSION "PP_KO_MARKETING_SHORT_VERSION"
-#define KO_FULL_PRETTY_VERSION "PP_KO_FULL_PRETTY_VERSION"
-#define KO_BUILD_PLATFORM "PP_KO_BUILD_PLATFORM"
-#define KO_PROD_TYPE "PP_KO_PROD_TYPE"
-#define KO_APPDATADIR_NAME "PP_KO_APPDATADIR_NAME"
-#define KO_VERSION "PP_KO_VERSION"
-#define KO_BUILD_NUMBER "PP_KO_BUILD_NUMBER"
-#define PYTHON_MAJOR_MINOR "PP_PYTHON_MAJOR_MINOR"
+#define KO_SHORT_VERSION "12.0"
+#define KO_MARKETING_SHORT_VERSION "12.0"
+#define KO_FULL_PRETTY_VERSION "Komodo Edit 12.0.1 (Build 18513)"
+#define KO_BUILD_PLATFORM "linux-x86_64"
+#define KO_PROD_TYPE "edit"
+#define KO_APPDATADIR_NAME "komodoedit"
+#define KO_VERSION "12.0.1"
+#define KO_BUILD_NUMBER "18513"
+#define PYTHON_MAJOR_MINOR "2.7"
+
+#define DEFAULT_FONTCONFIG_FILE "/etc/fonts/fonts.conf"
 
 
 
@@ -1791,8 +1793,13 @@ void _KoStart_SetupEnvironment(const char* programDir)
         _LogError("buffer overflow while setting FONTCONFIG_FILE\n");
         exit(1);
     }
-    _LogDebug("setting %s=%s\n", "FONTCONFIG_FILE", buf);
-    xpsetenv("FONTCONFIG_FILE", buf, 1);
+    if (_IsFile(buf)) {
+        _LogDebug("setting %s=%s\n", "FONTCONFIG_FILE", buf);
+        xpsetenv("FONTCONFIG_FILE", buf, 1);
+    } else {
+        _LogDebug("setting %s=%s\n", "FONTCONFIG_FILE", DEFAULT_FONTCONFIG_FILE);
+        xpsetenv("FONTCONFIG_FILE", DEFAULT_FONTCONFIG_FILE, 1);
+    }
 
     /* set GDK_PIXBUF_MODULE_FILE (GTK2 libs are in mozbin dir):
      *  Windows:        (Never depend on GTK2 on Windows.)
@@ -1805,8 +1812,13 @@ void _KoStart_SetupEnvironment(const char* programDir)
         _LogError("buffer overflow while setting GDK_PIXBUF_MODULE_FILE\n");
         exit(1);
     }
-    _LogDebug("setting %s=%s\n", "GDK_PIXBUF_MODULE_FILE", buf);
-    xpsetenv("GDK_PIXBUF_MODULE_FILE", buf, 1);
+    if (_IsFile(buf)) {
+        _LogDebug("setting %s=%s\n", "GDK_PIXBUF_MODULE_FILE", buf);
+        xpsetenv("GDK_PIXBUF_MODULE_FILE", buf, 1);
+    } else {
+        _LogDebug("unsetting %s\n", "GDK_PIXBUF_MODULE_FILE");
+        xpunsetenv("GDK_PIXBUF_MODULE_FILE");
+    }
 
     /* set PANGO_RC_FILE (GTK2 libs are in mozbin dir):
      *  Windows:        (Never depend on GTK2 on Windows.)
@@ -1819,8 +1831,13 @@ void _KoStart_SetupEnvironment(const char* programDir)
         _LogError("buffer overflow while setting PANGO_RC_FILE\n");
         exit(1);
     }
-    _LogDebug("setting %s=%s\n", "PANGO_RC_FILE", buf);
-    xpsetenv("PANGO_RC_FILE", buf, 1);
+    if (_IsFile(buf)) {
+        _LogDebug("setting %s=%s\n", "PANGO_RC_FILE", buf);
+        xpsetenv("PANGO_RC_FILE", buf, 1);
+    } else {
+        _LogDebug("unsetting %s\n", "PANGO_RC_FILE");
+        xpunsetenv("PANGO_RC_FILE");
+    }
 /* #endif */
 }
 

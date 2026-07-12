@@ -1,0 +1,52 @@
+Bug: the vendored libevent linux config predates glibc providing native
+arc4random()/arc4random_buf() (glibc >= 2.36), so it both (a) redefines
+static arc4random_buf() colliding with libc's declaration, and (b) still
+advertises a <sys/sysctl.h> that modern Linux no longer ships (and does so
+via a plain #ifdef, so merely zeroing the value doesn't suppress the
+#include). Point the config at what the modern glibc/Linux toolchain
+actually provides.
+Index: ipc/chromium/src/third_party/libevent/linux/event2/event-config.h
+--- a/ipc/chromium/src/third_party/libevent/linux/event2/event-config.h
++++ b/ipc/chromium/src/third_party/libevent/linux/event2/event-config.h
+@@ -24,10 +24,10 @@
+ /* #undef _EVENT_DISABLE_THREAD_SUPPORT */
+ 
+ /* Define to 1 if you have the `arc4random' function. */
+-/* #undef _EVENT_HAVE_ARC4RANDOM */
++#define _EVENT_HAVE_ARC4RANDOM 1
+ 
+ /* Define to 1 if you have the `arc4random_buf' function. */
+-/* #undef _EVENT_HAVE_ARC4RANDOM_BUF */
++#define _EVENT_HAVE_ARC4RANDOM_BUF 1
+ 
+ /* Define to 1 if you have the <arpa/inet.h> header file. */
+ #define _EVENT_HAVE_ARPA_INET_H 1
+@@ -31,13 +31,13 @@
+ /* Define to 1 if you have the declaration of `CTL_KERN', and to 0 if you
+    don't. */
+-#define _EVENT_HAVE_DECL_CTL_KERN 1
++#define _EVENT_HAVE_DECL_CTL_KERN 0
+ 
+ /* Define to 1 if you have the declaration of `KERN_ARND', and to 0 if you
+    don't. */
+ #define _EVENT_HAVE_DECL_KERN_ARND 0
+ 
+ /* Define to 1 if you have the declaration of `KERN_RANDOM', and to 0 if you
+    don't. */
+-#define _EVENT_HAVE_DECL_KERN_RANDOM 1
++#define _EVENT_HAVE_DECL_KERN_RANDOM 0
+ 
+ /* Define to 1 if you have the declaration of `RANDOM_UUID', and to 0 if you
+    don't. */
+-#define _EVENT_HAVE_DECL_RANDOM_UUID 1
++#define _EVENT_HAVE_DECL_RANDOM_UUID 0
+@@ -300,7 +300,7 @@
+ /* Define to 1 if you have the <sys/stat.h> header file. */
+ #define _EVENT_HAVE_SYS_STAT_H 1
+ 
+ /* Define to 1 if you have the <sys/sysctl.h> header file. */
+-#define _EVENT_HAVE_SYS_SYSCTL_H 1
++/* #undef _EVENT_HAVE_SYS_SYSCTL_H */
+ 
+ /* Define to 1 if you have the <sys/time.h> header file. */
+ #define _EVENT_HAVE_SYS_TIME_H 1

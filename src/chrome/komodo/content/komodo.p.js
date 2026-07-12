@@ -70,6 +70,17 @@ function saveWorkspaceIfNeeded(reason) {
     }
 }
 
+function markNormalShutdownNow() {
+    try {
+        ko.prefs.setBooleanPref("komodo_normal_shutdown", true);
+        Components.classes["@activestate.com/koPrefService;1"]
+                  .getService(Components.interfaces.koIPrefService)
+                  .saveState();
+    } catch(ex) {
+        _log.exception(ex, "failed to persist komodo_normal_shutdown");
+    }
+}
+
 /**
  * Is this window being closed?
  */
@@ -85,7 +96,7 @@ this.quitApplication = function() {
         _log.exception(ex);
     }
     try {
-        ko.prefs.setBooleanPref("komodo_normal_shutdown", true);
+        markNormalShutdownNow();
         goQuitApplication();
     } catch(ex) {
         _log.exception(ex);
@@ -169,7 +180,7 @@ this.restartWithFlag = function(flag) {
 
     let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].
                      getService(Ci.nsIAppStartup);
-    ko.prefs.setBooleanPref("komodo_normal_shutdown", true);
+    markNormalShutdownNow();
     appStartup.quit(Ci.nsIAppStartup.eAttemptQuit |  Ci.nsIAppStartup.eRestart);
 }
 
@@ -263,7 +274,7 @@ this._onDOMWindowClose = function(event) {
         saveWorkspaceIfNeeded("window-close");
     }
     ko.main.runWillCloseHandlers();
-    ko.prefs.setBooleanPref("komodo_normal_shutdown", true);
+    markNormalShutdownNow();
 
     window.removeEventListener("DOMWindowClose", ko.main._onDOMWindowClose, true);
     _log.debug("<< ko.main._onDOMWindowClose");
@@ -549,6 +560,42 @@ window.onload = function(event) {
 // #if PLATFORM == "linux"
         _check_native_mozicon_availability();
 // #endif
+
+        // Some desktop sessions can restore the chrome window into a tiny or
+        // effectively hidden geometry; normalize it early and retry once the
+        // window manager has had time to finish mapping the toplevel.
+        var normalizeStartupGeometry = function() {
+            try {
+                _log.info("startup geometry check: outer=" + window.outerWidth + "x" + window.outerHeight +
+                          " screen=" + window.screenX + "," + window.screenY);
+                var baseWin = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                                    .getInterface(Ci.nsIWebNavigation)
+                                    .QueryInterface(Ci.nsIDocShellTreeItem)
+                                    .treeOwner
+                                    .QueryInterface(Ci.nsIInterfaceRequestor)
+                                    .getInterface(Ci.nsIBaseWindow);
+
+                if (window.outerWidth < 500 || window.outerHeight < 400) {
+                    _log.info("startup geometry normalization applying native resize");
+                    baseWin.setPositionAndSize(20, 20, 1150, 700, true);
+                    window.resizeTo(1150, 700);
+                    window.moveTo(20, 20);
+                }
+
+                baseWin.visibility = true;
+                window.focus();
+                window.getAttention();
+                _log.info("startup geometry post-check: outer=" + window.outerWidth + "x" + window.outerHeight +
+                          " screen=" + window.screenX + "," + window.screenY);
+            } catch (ex) {
+                _log.debug("startup geometry normalization skipped: " + ex);
+            }
+        };
+
+        normalizeStartupGeometry();
+        setTimeout(normalizeStartupGeometry, 200);
+        setTimeout(normalizeStartupGeometry, 1000);
+        setTimeout(normalizeStartupGeometry, 2500);
 
         /* services needed for even the most basic operation of komodo */
         ko.keybindings.onload();

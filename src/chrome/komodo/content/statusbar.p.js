@@ -55,7 +55,7 @@ ko.statusBar = {};
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+var statusbarXPCOMUtils = Components.utils.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
 
 var _log = ko.logging.getLogger('statusbar');
 //_log.setLevel(ko.logging.LOG_DEBUG);
@@ -64,7 +64,7 @@ var lazy = {
 };
 
 // The find XPCOM service that does all the grunt work.
-XPCOMUtils.defineLazyGetter(lazy, "bundle", function()
+statusbarXPCOMUtils.defineLazyGetter(lazy, "bundle", function()
     Components.classes["@mozilla.org/intl/stringbundle;1"]
     .getService(Components.interfaces.nsIStringBundleService)
     .createBundle("chrome://komodo/locale/statusbar.properties"));

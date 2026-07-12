@@ -108,7 +108,7 @@ def OneCmd(cmdObject, args=None):
         args = ["help"]
     try:
         return cmdObject.onecmd(args)
-    except CmdError, err:
+    except CmdError as err:
         out.startErrorItem()
         out.write("%s: %s" % (cmdObject.name, err))
         out.endErrorItem()
@@ -148,7 +148,7 @@ class AugmentedListCmd(cmd.Cmd):
     name = "AugmentedListCmd"
     
     def cmdloop(self, intro=None):
-        raise "The cmdloop stuff is not yet implemented for AugmentedListCmd."
+        raise NotImplementedError("The cmdloop stuff is not yet implemented for AugmentedListCmd.")
 
     def onecmd(self, argv):
         if not argv:
@@ -176,7 +176,7 @@ class AugmentedListCmd(cmd.Cmd):
         try:
             retval = func(argv)
             return retval
-        except CmdError, err:
+        except CmdError as err:
             out.write("*** %s %s: %s\n" % (self.name, cmdName, str(err)))
             out.write("    (Try `%s help %s'.)\n" % (self.name, cmdName))
             usage = self.doc_usage(func.__doc__)

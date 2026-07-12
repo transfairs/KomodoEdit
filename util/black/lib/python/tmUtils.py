@@ -110,7 +110,7 @@ def AskQuestion(prompt="?", default="", isValidCallback=None):
         postPrompt = ' '
     while 1:
         out.write(prompt + postPrompt)
-        choice = raw_input()
+        choice = input()
         if choice == "":
             choice = default
         if isValidCallback is not None:

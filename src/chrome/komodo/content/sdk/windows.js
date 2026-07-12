@@ -226,6 +226,9 @@
     {
         var windows = [];
         var w = this.getMain();
+        if ( ! w || ! w.ko || ! w.ko.widgets || ! w.ko.widgets.widgets)
+            return windows;
+
         for (let id of w.ko.widgets.widgets)
         {
             try

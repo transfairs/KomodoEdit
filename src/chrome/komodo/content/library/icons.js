@@ -2,9 +2,8 @@
 
     const {Cc, Ci, Cu}  = require("chrome");
     
-    Cu.import("resource://gre/modules/NetUtil.jsm");
-    Cu.import("resource://gre/modules/Services.jsm");
-    Cu.import("resource://gre/modules/FileUtils.jsm");
+    const {NetUtil} = Cu.import("resource://gre/modules/NetUtil.jsm", {});
+    const {FileUtils} = Cu.import("resource://gre/modules/FileUtils.jsm", {});
 
     const langSvc   = Cc['@activestate.com/koLanguageRegistryService;1']
                         .getService(Ci.koILanguageRegistryService);

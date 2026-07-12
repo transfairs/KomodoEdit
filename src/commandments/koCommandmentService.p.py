@@ -378,8 +378,35 @@ else:
                 "ver" is a Komodo version string on which to key
                     commandment system resources (locks, event names, etc.)
             """
-            self._commandmentsFileName = os.path.join(dname, "commandments.fifo")
-            self._firstCommandmentsFileName = os.path.join(dname, "first-commandments.txt")
+            # Some portable/mixed builds can disagree on the minor version
+            # directory (e.g. launcher writes to 12.0, app expects 12.10).
+            # If the expected fifo is missing, fall back to a sibling dir in
+            # the same major version that already has a fifo.
+            resolvedDname = dname
+            expectedFifo = os.path.join(dname, "commandments.fifo")
+            if not os.path.exists(expectedFifo):
+                parent = os.path.dirname(dname)
+                currentName = os.path.basename(dname)
+                major = ver.split('.', 1)[0]
+                try:
+                    siblings = sorted(os.listdir(parent))
+                except OSError:
+                    siblings = []
+                for name in siblings:
+                    if name == currentName:
+                        continue
+                    if not name.startswith(major + "."):
+                        continue
+                    candidate = os.path.join(parent, name)
+                    candidateFifo = os.path.join(candidate, "commandments.fifo")
+                    if os.path.exists(candidateFifo):
+                        log.warn("falling back to commandment dir '%s' (expected '%s')",
+                                 candidate, dname)
+                        resolvedDname = candidate
+                        break
+
+            self._commandmentsFileName = os.path.join(resolvedDname, "commandments.fifo")
+            self._firstCommandmentsFileName = os.path.join(resolvedDname, "first-commandments.txt")
             threading.Thread.__init__(self, name="CommandmentsReader")
             self.setDaemon(True)
 

@@ -3360,9 +3360,15 @@ this.initProjectMRUCogMenu_SPV = function() {
 
 
 this.onUnload = function places_onUnload() {
-    ko.places.manager.finalize();
-    ko.places.viewMgr.finalize();
-    ko.places.projects.terminate();
+    if (ko.places.manager) {
+        ko.places.manager.finalize();
+    }
+    if (ko.places.viewMgr) {
+        ko.places.viewMgr.finalize();
+    }
+    if (ko.places.projects) {
+        ko.places.projects.terminate();
+    }
     ko.places.manager = ko.places._viewMgr = null;
 };
 

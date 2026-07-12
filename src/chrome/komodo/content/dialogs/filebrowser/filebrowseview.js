@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 // Globals
-Components.utils.import("resource://gre/modules/Services.jsm");
+var fileBrowseServices = Components.utils.import("resource://gre/modules/Services.jsm", {}).Services;
 
 const nsIScriptableDateFormat = Components.interfaces.nsIScriptableDateFormat;
 const nsScriptableDateFormat_CONTRACTID = "@mozilla.org/intl/scriptabledateformat;1";
@@ -121,7 +121,7 @@ function filebrowseview() {
   this.mFileAtom = atomService.getAtom("remotefile");
 
   // Mozilla 22 changed the way tree properties work.
-  if ((parseInt(Services.appinfo.platformVersion)) < 22) {
+  if ((parseInt(fileBrowseServices.appinfo.platformVersion)) < 22) {
     this.getCellProperties = this.getCellPropertiesMoz21AndOlder;
   }
 }

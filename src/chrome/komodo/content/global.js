@@ -8,10 +8,10 @@
  */
 
 const [Cc, Ci, Cu] = [Components.classes, Components.interfaces, Components.utils];
-const {Services} = Cu.import("resource://gre/modules/Services.jsm");
+const globalServices = Cu.import("resource://gre/modules/Services.jsm", {}).Services;
 const observerSvc = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
                         
-Services.scriptloader.loadSubScript("chrome://komodo/content/sdk/console.js");
+globalServices.scriptloader.loadSubScript("chrome://komodo/content/sdk/console.js");
 
 const EXPORTED_SYMBOLS = ["global"];
 
@@ -66,7 +66,7 @@ var global = {};
             // Jetpack must be loaded after window.ko has been created (so that it
             // knows how to get things into the right scope, for backwards compat)
             w.global = global;
-            Services.scriptloader.loadSubScript("chrome://komodo/content/jetpack.js", w);
+            globalServices.scriptloader.loadSubScript("chrome://komodo/content/jetpack.js", w);
             if ( ! w.ko)
                 w.ko = {};
             w.JetPack.defineLazyProperty(w.ko, "logging", "ko/logging", true);

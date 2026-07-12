@@ -1,0 +1,118 @@
+Bug: several places in google-breakpad's Linux client assume things about
+glibc that are no longer true on modern glibc:
+ - <sys/ucontext.h> no longer exposes a `struct ucontext` tag (only the
+   `ucontext_t` typedef survives), so code using `struct ucontext` fails
+   with "field/argument has incomplete type" or "does not name a type".
+ - glibc now declares its own extern tgkill(), conflicting with this
+   file's own `static int tgkill(...)` syscall-wrapper definition.
+ - SIGSTKSZ is no longer a compile-time int constant on modern glibc (it
+   is computed at runtime via sysconf and is a `long`), so
+   `std::max(8192, SIGSTKSZ)` fails to resolve (int vs long).
+Point signal-context code at ucontext_t, rename the local tgkill wrapper
+to avoid the glibc symbol clash, and make the std::max call type-correct.
+Index: toolkit/crashreporter/google-breakpad/src/client/linux/handler/exception_handler.cc
+--- a/toolkit/crashreporter/google-breakpad/src/client/linux/handler/exception_handler.cc	Thu Jan 08 23:22:45 2015 -0500
++++ b/toolkit/crashreporter/google-breakpad/src/client/linux/handler/exception_handler.cc	Sun Jul 12 05:54:00 2026 +0800
+@@ -101,7 +101,10 @@
+ #endif
+ 
+ // A wrapper for the tgkill syscall: send a signal to a specific thread.
+-static int tgkill(pid_t tgid, pid_t tid, int sig) {
++// Named breakpad_tgkill (rather than tgkill) because modern glibc now
++// declares its own extern tgkill(), which this static definition would
++// otherwise conflict with.
++static int breakpad_tgkill(pid_t tgid, pid_t tid, int sig) {
+   return syscall(__NR_tgkill, tgid, tid, sig);
+   return 0;
+ }
+@@ -139,7 +142,7 @@
+   // SIGSTKSZ may be too small to prevent the signal handlers from overrunning
+   // the alternative stack. Ensure that the size of the alternative stack is
+   // large enough.
+-  static const unsigned kSigStackSize = std::max(8192, SIGSTKSZ);
++  static const unsigned kSigStackSize = std::max<long>(8192, SIGSTKSZ);
+ 
+   // Only set an alternative stack if there isn't already one, or if the current
+   // one is too small.
+@@ -343,7 +346,7 @@
+     // This signal was sent by another process.  (Positive values of
+     // si_code are reserved for kernel-originated signals.)  In order
+     // to retrigger it, we have to queue a new signal.
+-    if (tgkill(getpid(), syscall(__NR_gettid), sig) < 0) {
++    if (breakpad_tgkill(getpid(), syscall(__NR_gettid), sig) < 0) {
+       // If we failed to kill ourselves (e.g. because a sandbox disallows us
+       // to do so), we instead resort to terminating our process. This will
+       // result in an incorrect exit code.
+@@ -393,10 +396,10 @@
+   }
+   CrashContext context;
+   memcpy(&context.siginfo, info, sizeof(siginfo_t));
+-  memcpy(&context.context, uc, sizeof(struct ucontext));
++  memcpy(&context.context, uc, sizeof(ucontext_t));
+ #if !defined(__ARM_EABI__)
+   // FP state is not part of user ABI on ARM Linux.
+-  struct ucontext *uc_ptr = (struct ucontext*)uc;
++  ucontext_t *uc_ptr = (ucontext_t*)uc;
+   if (uc_ptr->uc_mcontext.fpregs) {
+     memcpy(&context.float_state,
+            uc_ptr->uc_mcontext.fpregs,
+@@ -420,7 +423,7 @@
+   // ExceptionHandler::HandleSignal().
+   siginfo.si_code = SI_USER;
+   siginfo.si_pid = getpid();
+-  struct ucontext context;
++  ucontext_t context;
+   getcontext(&context);
+   return HandleSignal(sig, &siginfo, &context);
+ }
+Index: toolkit/crashreporter/google-breakpad/src/client/linux/handler/exception_handler.h
+--- a/toolkit/crashreporter/google-breakpad/src/client/linux/handler/exception_handler.h	Thu Jan 08 23:22:45 2015 -0500
++++ b/toolkit/crashreporter/google-breakpad/src/client/linux/handler/exception_handler.h	Sun Jul 12 04:32:32 2026 +0800
+@@ -189,7 +189,7 @@
+   struct CrashContext {
+     siginfo_t siginfo;
+     pid_t tid;  // the crashing thread.
+-    struct ucontext context;
++    ucontext_t context;
+ #if !defined(__ARM_EABI__)
+     // #ifdef this out because FP state is not part of user ABI for Linux ARM.
+     struct _libc_fpstate float_state;
+Index: toolkit/crashreporter/google-breakpad/src/client/linux/minidump_writer/minidump_writer.cc
+--- a/toolkit/crashreporter/google-breakpad/src/client/linux/minidump_writer/minidump_writer.cc	Thu Jan 08 23:22:45 2015 -0500
++++ b/toolkit/crashreporter/google-breakpad/src/client/linux/minidump_writer/minidump_writer.cc	Sun Jul 12 05:21:35 2026 +0800
+@@ -173,7 +173,7 @@
+ // Juggle an x86 ucontext into minidump format
+ //   out: the minidump structure
+ //   info: the collection of register structures.
+-void CPUFillFromUContext(MDRawContextX86 *out, const ucontext *uc,
++void CPUFillFromUContext(MDRawContextX86 *out, const ucontext_t *uc,
+                          const struct _libc_fpstate* fp) {
+   const greg_t* regs = uc->uc_mcontext.gregs;
+ 
+@@ -273,7 +273,7 @@
+   my_memcpy(&out->flt_save.xmm_registers, &info.fpregs.xmm_space, 16 * 16);
+ }
+ 
+-void CPUFillFromUContext(MDRawContextAMD64 *out, const ucontext *uc,
++void CPUFillFromUContext(MDRawContextAMD64 *out, const ucontext_t *uc,
+                          const struct _libc_fpstate* fpregs) {
+   const greg_t* regs = uc->uc_mcontext.gregs;
+ 
+@@ -340,7 +340,7 @@
+ #endif
+ }
+ 
+-void CPUFillFromUContext(MDRawContextARM* out, const ucontext* uc,
++void CPUFillFromUContext(MDRawContextARM* out, const ucontext_t* uc,
+                          const struct _libc_fpstate* fpregs) {
+   out->context_flags = MD_CONTEXT_ARM_FULL;
+ 
+@@ -1479,7 +1479,7 @@
+   const int fd_;  // File descriptor where the minidum should be written.
+   const char* path_;  // Path to the file where the minidum should be written.
+ 
+-  const struct ucontext* const ucontext_;  // also from the signal handler
++  const ucontext_t* const ucontext_;  // also from the signal handler
+   const struct _libc_fpstate* const float_state_;  // ditto
+   LinuxDumper* dumper_;
+   MinidumpFileWriter minidump_writer_;

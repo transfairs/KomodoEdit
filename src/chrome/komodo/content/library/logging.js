@@ -12,8 +12,8 @@
         // object with the desired API.
         var { logging } = Components.utils.import("chrome://komodo/content/sdk/logging.js", {});
 
-        // Note that Cu.getGlobalForObject({}) gives us the wrong global...
-        this.EXPORTED_SYMBOLS = ["logging"];
+        if (!("EXPORTED_SYMBOLS" in this))
+            this.EXPORTED_SYMBOLS = ["logging"];
         this.logging = this.exports = logging;
         this.exports.__method__ = "import"; // For unit testing
     }

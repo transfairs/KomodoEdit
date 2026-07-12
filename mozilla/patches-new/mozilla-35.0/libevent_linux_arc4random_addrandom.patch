@@ -1,0 +1,56 @@
+Bug: evutil_secure_rng_add_bytes() unconditionally calls the legacy BSD
+arc4random_addrandom() reseed hook on any non-OpenBSD platform. Modern
+glibc (>= 2.36) implements arc4random()/arc4random_buf() natively but,
+like OpenBSD, does not expose arc4random_addrandom() (it self-reseeds
+from the kernel CSPRNG instead), so this fails to compile once Linux
+is pointed at the system arc4random via _EVENT_HAVE_ARC4RANDOM. This
+function is not called anywhere in the tree (see the pre-existing
+openbsd-no-arc4random_addrandom.patch in this same directory, which
+carves out the identical exception for OpenBSD), so stub it out for
+Linux the same way.
+Index: ipc/chromium/src/third_party/libevent/evutil_rand.c
+--- a/ipc/chromium/src/third_party/libevent/evutil_rand.c
++++ b/ipc/chromium/src/third_party/libevent/evutil_rand.c
+@@ -139,13 +139,13 @@
+ void
+ evutil_secure_rng_get_bytes(void *buf, size_t n)
+ {
+ 	ev_arc4random_buf(buf, n);
+ }
+ 
+-#ifndef __OpenBSD__
++#if !defined(__OpenBSD__) && !defined(__linux__)
+ void
+ evutil_secure_rng_add_bytes(const char *buf, size_t n)
+ {
+ 	arc4random_addrandom((unsigned char*)buf,
+ 	    n>(size_t)INT_MAX ? INT_MAX : (int)n);
+ }
+ #endif
+Index: ipc/chromium/src/third_party/libevent/include/event2/util.h
+--- a/ipc/chromium/src/third_party/libevent/include/event2/util.h
++++ b/ipc/chromium/src/third_party/libevent/include/event2/util.h
+@@ -672,17 +672,17 @@
+  */
+ int evutil_secure_rng_init(void);
+ 
+-#ifndef __OpenBSD__
++#if !defined(__OpenBSD__) && !defined(__linux__)
+ /** Seed the random number generator with extra random bytes.
+ 
+     You should almost never need to call this function; it should be
+     sufficient to invoke evutil_secure_rng_init(), or let Libevent take
+     care of calling evutil_secure_rng_init() on its own.
+ 
+     If you call this function as a _replacement_ for the regular
+     entropy sources, then you need to be sure that your input
+     contains a fairly large amount of strong entropy.  Doing so is
+     notoriously hard: most people who try get it wrong.  Watch out!
+ 
+     @param dat a buffer full of a strong source of random numbers
+     @param datlen the number of bytes to read from datlen
+  */
+ void evutil_secure_rng_add_bytes(const char *dat, size_t datlen);
+ #endif
+ 
+ #ifdef __cplusplus

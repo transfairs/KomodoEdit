@@ -1,0 +1,31 @@
+Bug: the crashreporter client is intentionally built without libmozglue
+(DISABLE_STL_WRAPPING, "don't link with -lmozalloc"), but it statically
+links breakpad_linux_common_s, which *is* built with STL wrapping
+enabled (shared with the full browser build). On modern libstdc++, code
+in that static lib (e.g. http_upload.cc's use of std::string/vector)
+actually emits calls to std::__throw_length_error() and friends, whose
+Mozilla override (memory/mozalloc/throw_gcc.h) calls mozalloc_abort() --
+undefined at link time here since libmozglue isn't linked. Pull in a
+standalone mozalloc_abort.cpp instead of the whole glue library, since
+this client only needs the abort() implementation, not real mozalloc.
+Index: toolkit/crashreporter/client/moz.build
+--- a/toolkit/crashreporter/client/moz.build	Thu Jan 08 23:22:45 2015 -0500
++++ b/toolkit/crashreporter/client/moz.build	Sun Jul 12 10:25:52 2026 +0800
+@@ -15,6 +15,17 @@
+     '../google-breakpad/src',
+ ]
+ 
++if CONFIG['OS_ARCH'] not in ('WINNT', 'Darwin'):
++    # The linked-in breakpad_linux_common_s code is built with STL
++    # wrapping enabled (it's shared with the full browser build), so its
++    # libstdc++ __throw_*() overrides (see memory/mozalloc/throw_gcc.h)
++    # need mozalloc_abort() at link time. This client intentionally does
++    # not link libmozglue (see DISABLE_STL_WRAPPING above), so pull in a
++    # standalone definition instead of the full mozalloc/mozglue library.
++    SOURCES += [
++        '../../../memory/mozalloc/mozalloc_abort.cpp',
++    ]
++
+ if CONFIG['OS_ARCH'] == 'WINNT':
+     UNIFIED_SOURCES += [
+         'crashreporter_win.cpp',

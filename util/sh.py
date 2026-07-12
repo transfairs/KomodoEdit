@@ -43,7 +43,6 @@
 import os
 import sys
 import shutil
-import string
 import glob
 
 import logging
@@ -100,7 +99,7 @@ def isdir(dirname):
         return os.path.isdir(dirname)
 
 
-def mkdir(newdir, mode=0777):
+def mkdir(newdir, mode=0o777):
     """works the way a good mkdir should :)
         - already exists, silently complete
         - regular file in the way, raise an exception
@@ -133,9 +132,7 @@ def copy(src, dst):
                        "src='%s' dst='%s'" % (src, dst)
     # determine if filename wildcarding is being used
     # (only raise error if non-wildcarded source file does not exist)
-    if string.find(src, '*') != -1 or \
-       string.find(src, '?') != -1 or \
-       string.find(src, '[') != -1:
+    if '*' in src or '?' in src or '[' in src:
         usingWildcards = 1
         srcFiles = glob.glob(src)
     else:
@@ -162,18 +159,18 @@ def copy(src, dst):
             if os.path.isfile(dstFile):
                 # make sure 'dstFile' is writeable
                 try:
-                    os.chmod(dstFile, 0777)
-                except OSError, ex:
+                    os.chmod(dstFile, 0o777)
+                except OSError as ex:
                     log.warn(str(ex))
             log.debug('copy "%s" "%s"' % (srcFile, dstFile))
             try:
                 shutil.copy(srcFile, dstFile)
-            except OSError, ex:
+            except OSError as ex:
                 log.warn(str(ex))
             # make the new 'dstFile' writeable
             try:
-                os.chmod(dstFile, 0777)
-            except OSError, ex:
+                os.chmod(dstFile, 0o777)
+            except OSError as ex:
                 log.warn(str(ex))
         elif isdir(srcFile):
             srcFiles = os.listdir(srcFile)
@@ -184,7 +181,7 @@ def copy(src, dst):
                 d = os.path.join(dst, f)
                 try:
                     copy(s, d)
-                except (IOError, os.error), why:
+                except (IOError, os.error) as why:
                     raise OSError("Can't copy %s to %s: %s"\
                           % (repr(s), repr(d), str(why)))
         elif not usingWildcards:
@@ -194,7 +191,7 @@ def copy(src, dst):
 def _rmtreeOnError(rmFunction, filePath, excInfo):
     if excInfo[0] == OSError:
         # presuming because file is read-only
-        os.chmod(filePath, 0777)
+        os.chmod(filePath, 0o777)
         rmFunction(filePath)
 
 def rmtree(dirname):
@@ -218,9 +215,9 @@ def rm(path):
         if os.path.isfile(path) or os.path.islink(path):
             try:
                 os.remove(path)
-            except OSError, ex:
+            except OSError as ex:
                 if ex.errno == 13: # OSError: [Errno 13] Permission denied
-                    os.chmod(path, 0777)
+                    os.chmod(path, 0o777)
                     os.remove(path)
                 else:
                     raise

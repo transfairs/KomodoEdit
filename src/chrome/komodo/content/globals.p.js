@@ -13,8 +13,8 @@ const Cu = Components.utils;
 /**
  * Global utility modules.
  */
-const {Services} = Cu.import("resource://gre/modules/Services.jsm");
-const {XPCOMUtils} = Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+const koGlobalServices = Cu.import("resource://gre/modules/Services.jsm", {}).Services;
+const {XPCOMUtils} = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {});
 
 /**
  * Define the main Komodo namespace.
@@ -34,61 +34,61 @@ require("ko/profiler").start("startup");
 /**
  * Global Komodo services, defined on the Services object (once per app).
  */
-if (!Services.koInfo) {
-    XPCOMUtils.defineLazyGetter(Services, "koInfo", () =>
+if (!koGlobalServices.koInfo) {
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koInfo", () =>
         Cc["@activestate.com/koInfoService;1"].getService(Ci.koIInfoService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koDirs", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koDirs", () =>
         Cc["@activestate.com/koDirs;1"].getService(Ci.koIDirs));
 
-    XPCOMUtils.defineLazyGetter(Services, "koFileSvc", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koFileSvc", () =>
         Cc["@activestate.com/koFileService;1"].getService(Ci.koIFileService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koFileStatus", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koFileStatus", () =>
         Cc["@activestate.com/koFileStatusService;1"].getService(Ci.koIFileStatusService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koDocSvc", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koDocSvc", () =>
         Cc["@activestate.com/koDocumentService;1"].getService(Ci.koIDocumentService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koViewSvc", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koViewSvc", () =>
         Cc["@activestate.com/koViewService;1"].getService(Ci.koIViewService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koTextUtils", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koTextUtils", () =>
         Cc["@activestate.com/koTextUtils;1"].getService(Ci.koITextUtils));
 
-    XPCOMUtils.defineLazyGetter(Services, "koEncodingSvc", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koEncodingSvc", () =>
         Cc["@activestate.com/koEncodingServices;1"].getService(Ci.koIEncodingServices));
 
-    XPCOMUtils.defineLazyGetter(Services, "koSysUtils", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koSysUtils", () =>
         Cc["@activestate.com/koSysUtils;1"].getService(Ci.koISysUtils));
 
-    XPCOMUtils.defineLazyGetter(Services, "koLangRegistry", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koLangRegistry", () =>
         Cc["@activestate.com/koLanguageRegistryService;1"].getService(Ci.koILanguageRegistryService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koAsync", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koAsync", () =>
         Cc["@activestate.com/koAsyncService;1"].getService(Ci.koIAsyncService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koRun", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koRun", () =>
         Cc["@activestate.com/koRunService;1"].getService(Ci.koIRunService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koFind", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koFind", () =>
         Cc["@activestate.com/koFindService;1"].getService(Ci.koIFindService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koOs", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koOs", () =>
         Cc["@activestate.com/koOs;1"].getService(Ci.koIOs));
 
-    XPCOMUtils.defineLazyGetter(Services, "koOsPath", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koOsPath", () =>
         Cc["@activestate.com/koOsPath;1"].getService(Ci.koIOsPath));
 
-    XPCOMUtils.defineLazyGetter(Services, "koLastError", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koLastError", () =>
         Cc["@activestate.com/koLastErrorService;1"].getService(Ci.koILastErrorService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koUserEnv", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koUserEnv", () =>
         Cc["@activestate.com/koUserEnviron;1"].getService(Ci.koIUserEnviron));
 
-    XPCOMUtils.defineLazyGetter(Services, "koRemoteConnection", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koRemoteConnection", () =>
         Cc["@activestate.com/koRemoteConnectionService;1"].getService(Ci.koIRemoteConnectionService));
 
-    XPCOMUtils.defineLazyGetter(Services, "koWebbrowser", () =>
+    XPCOMUtils.defineLazyGetter(koGlobalServices, "koWebbrowser", () =>
         Cc["@activestate.com/koWebbrowser;1"].getService(Ci.koIWebbrowser));
 }

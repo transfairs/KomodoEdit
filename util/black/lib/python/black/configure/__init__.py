@@ -46,7 +46,10 @@
 
 import os, sys, re, types, getopt
 import stat
-from UserDict import UserDict
+try:
+    from UserDict import UserDict
+except ImportError:
+    from collections import UserDict
 if sys.platform.startswith('win'):
     import _winreg
 import black
@@ -55,6 +58,10 @@ import itertools
 try:
     basestring
 except NameError:
+    try:
+        unicode
+    except NameError:
+        unicode = str
     basestring = (str, unicode)
 
 
@@ -579,7 +586,7 @@ if __name__ == "__main__":
         # `chmod +x $self.filename` so can just do 
         # `./bkconfig.py SUBSTRING...`
         mode = stat.S_IMODE(os.stat(self.filename).st_mode)
-        os.chmod(self.filename, mode | 0100)
+        os.chmod(self.filename, mode | 0o100)
     
 
 

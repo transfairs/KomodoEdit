@@ -1,0 +1,56 @@
+Bug: linking libxul.so fails with "undefined reference to
+`gfxShapedWord* gfxFont::GetShapedWord<unsigned char>(...)'" (called
+from gfxTextRun.cpp's SetSpaceGlyph()). GetShapedWord is a member
+template that is only ever defined in gfxFont.cpp (declared, not
+defined, in gfxFont.h), so callers in other translation units --
+such as gfxTextRun.cpp -- depend entirely on gfxFont.cpp emitting an
+externally-linkable out-of-line copy of each specialization they use.
+
+gfxFont.cpp already works around the equivalent problem for
+SplitAndInitTextRun with explicit instantiations further up (see the
+adjacent "to avoid libxul link failure" comment, from 2015). It never
+extended that treatment to GetShapedWord itself, apparently because
+older GCC reliably emitted it as a byproduct of instantiating
+SplitAndInitTextRun (which calls GetShapedWord internally). Modern
+GCC's more aggressive inlining at -Os, combined with --gc-sections,
+drops that emitted-but-unreferenced-in-TU copy, leaving external
+callers with nothing to link against.
+
+Add the same explicit-instantiation treatment for GetShapedWord<uint8_t>
+and GetShapedWord<char16_t> (the two types textrun code needs).
+Index: gfx/thebes/gfxFont.cpp
+--- a/gfx/thebes/gfxFont.cpp	Thu Jan 08 23:22:45 2015 -0500
++++ b/gfx/thebes/gfxFont.cpp	Sun Jul 12 12:14:50 2026 +0800
+@@ -2801,6 +2801,32 @@
+                              int32_t aRunScript,
+                              bool aVertical);
+ 
++// Explicit instantiations of GetShapedWord, to avoid libxul link failure.
++// This template is only ever defined here, but is called externally (e.g.
++// from gfxTextRun.cpp); without an explicit instantiation, the compiler is
++// free to inline every in-TU use and never emit an externally-linkable
++// out-of-line copy.
++template gfxShapedWord*
++gfxFont::GetShapedWord(gfxContext *aContext,
++                       const uint8_t *aText,
++                       uint32_t aLength,
++                       uint32_t aHash,
++                       int32_t aRunScript,
++                       bool aVertical,
++                       int32_t aAppUnitsPerDevUnit,
++                       uint32_t aFlags,
++                       gfxTextPerfMetrics *aTextPerf);
++template gfxShapedWord*
++gfxFont::GetShapedWord(gfxContext *aContext,
++                       const char16_t *aText,
++                       uint32_t aLength,
++                       uint32_t aHash,
++                       int32_t aRunScript,
++                       bool aVertical,
++                       int32_t aAppUnitsPerDevUnit,
++                       uint32_t aFlags,
++                       gfxTextPerfMetrics *aTextPerf);
++
+ template<>
+ bool
+ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,

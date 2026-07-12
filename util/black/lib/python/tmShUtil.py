@@ -146,7 +146,7 @@ def Mkdir(newdir):
         if head and not os.path.isdir(head):
             Mkdir(head)
         if verbosity > 0:
-            print "mkdir %s" % repr(newdir)
+            print("mkdir %s" % repr(newdir))
         if tail:
             os.mkdir(newdir)
 
@@ -188,10 +188,10 @@ def Copy(src, dst):
             if not os.path.isdir(dstFileHead):
                 Mkdir(dstFileHead)
             if verbosity > 0:
-                print "copy %s to %s" % (repr(srcFile), repr(dstFile))
+                print("copy %s to %s" % (repr(srcFile), repr(dstFile)))
             if os.path.isfile(dstFile):
                 # make sure 'dstFile' is writeable
-                os.chmod(dstFile, 0755)
+                os.chmod(dstFile, 0o755)
             shutil.copy(srcFile, dstFile)
         elif os.path.isdir(srcFile):
             srcFiles = os.listdir(srcFile)
@@ -202,7 +202,7 @@ def Copy(src, dst):
                 d = os.path.join(dst, f)
                 try:
                     Copy(s, d)
-                except (IOError, os.error), why:
+                except (IOError, OSError) as why:
                     raise InstallError("Can't copy %s to %s: %s"\
                           % (repr(s), repr(d), str(why)))
         elif not usingWildcards:
@@ -212,7 +212,7 @@ def Copy(src, dst):
 def _RmTree_OnError(rmFunction, filePath, excInfo):
     if excInfo[0] == OSError:
         # presuming because file is read-only
-        os.chmod(filePath, 0777)
+        os.chmod(filePath, 0o777)
         rmFunction(filePath)
 
 def RmTree(dirname):
@@ -228,16 +228,17 @@ def RunCommands(commands):
     commands.
         "commands" is a list of shell commands.
     """
-    import types, tempfile, sys, os
-    if type(commands) != types.ListType:
-        raise "The 'commands' argument must be of type ListType."
-    elif len(commands) == 0:
-        raise "No commands to run.";
-    elif sys.platform.startswith("win"):
-        # With cmd.exe there is no nice way to do this, so must create a batch
-        # file which appends the commands after the given environment script.
-        batFileName = tempfile.mktemp() + ".bat"
-        bat = open(batFileName, "w")
+    import sys, os
+    if not isinstance(commands, (list, tuple)):
+        raise TypeError("The 'commands' argument must be a list.")
+    if len(commands) == 0:
+        raise ValueError("No commands to run.")
+    if sys.platform.startswith("win"):
+        # With cmd.exe there is no nice way to do this, so create a batch
+        # file which appends the commands and execute it.
+        import tempfile
+        bat = tempfile.NamedTemporaryFile(delete=False, suffix=".bat", mode="w", newline="\n")
+        batFileName = bat.name
         bat.write("@echo off\n")
         for command in commands:
             bat.write(command + "\n")
@@ -250,7 +251,10 @@ def RunCommands(commands):
             out.write("running '''%s'''...\n" % "\n".join(commands))
             out.flush()
         retval = os.system(cmdLine)
-        os.unlink(batFileName)
+        try:
+            os.unlink(batFileName)
+        except OSError:
+            pass
         return retval
     else:
         cmdLine = "%s" % "; ".join(commands)
@@ -275,8 +279,7 @@ def RunInContext(envScript, commands):
             file on Windows, a .sh file on linux)
         "commands" is a list of shell commands.
     """
-    import types
-    if type(commands) not in (types.ListType, types.TupleType):
+    if not isinstance(commands, (list, tuple)):
         raise TypeError("The 'commands' argument must be a list or tuple.\n")
     elif len(commands) == 0:
         raise ValueError("No commands to run: commands=%s\n" % commands);
@@ -284,7 +287,9 @@ def RunInContext(envScript, commands):
         #XXX This only work on WinNT/2K. Should check for that.
         # With cmd.exe there is no nice way to do this, so must create a batch
         # file which appends the commands after the given environment script.
-        batFileName = tempfile.mktemp() + ".bat"
+        import tempfile
+        bat = tempfile.NamedTemporaryFile(delete=False, suffix=".bat", mode="w", newline="\n")
+        batFileName = bat.name
         shutil.copy2(envScript, batFileName)
         bat = open(batFileName, "a")
         for command in commands:
@@ -294,7 +299,10 @@ def RunInContext(envScript, commands):
         bat.write("exit %ERRORLEVEL%")
         bat.close()
         retval = os.system("cmd /C %s" % batFileName) # always returns 0
-        os.unlink(batFileName)
+        try:
+            os.unlink(batFileName)
+        except OSError:
+            pass
         return retval
     else:
         # On Solaris, os.system runs sh rather than bash.

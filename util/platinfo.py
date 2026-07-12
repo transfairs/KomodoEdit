@@ -408,7 +408,7 @@ class PlatInfo(object):
         o.close()
         if arch == "ia64":
             self.arch = "ia64"
-        elif re.match("i\d86", arch):
+        elif re.match(r"i\d86", arch):
             self.arch = "x86"
         elif arch == "x86_64":
             self.arch = "x86_64"
@@ -580,6 +580,11 @@ class PlatInfo(object):
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 stdout, stderr = p.communicate()
                 retval = p.wait()
+                # In Python 3 subprocess returns bytes; decode to str
+                if isinstance(stdout, bytes):
+                    stdout = stdout.decode('utf-8', errors='replace')
+                if isinstance(stderr, bytes):
+                    stderr = stderr.decode('utf-8', errors='replace')
         except OSError:
             # Can happen if "lsb_release" did not exist, bug 82403.
             retval = 1   # an error
@@ -588,11 +593,11 @@ class PlatInfo(object):
         if retval:
             return {} # Running lsb_release failed
         patterns = {
-            "distro": re.compile("^Distributor ID:\s+(.*?)\s*$"),
-            "distro_desc": re.compile("^Description:\s+(.*?)\s*$"),
-            "distro_ver": re.compile("^Release:\s+(.*?)\s*$"),
-            "distro_codename": re.compile("^Codename:\s+(.*?)\s*$"),
-            "lsb_version": re.compile("^LSB Version:\s+(.*?)\s*$"),
+            "distro": re.compile(r"^Distributor ID:\s+(.*?)\s*$"),
+            "distro_desc": re.compile(r"^Description:\s+(.*?)\s*$"),
+            "distro_ver": re.compile(r"^Release:\s+(.*?)\s*$"),
+            "distro_codename": re.compile(r"^Codename:\s+(.*?)\s*$"),
+            "lsb_version": re.compile(r"^LSB Version:\s+(.*?)\s*$"),
         }
         for line in stdout.splitlines(0):
             for name, pattern in patterns.items():
@@ -622,19 +627,19 @@ class PlatInfo(object):
             return {}
 
         patterns = {
-            "redhat": re.compile("^Red Hat Linux release ([\d\.]+)"),
+            "redhat": re.compile(r"^Red Hat Linux release ([\d\.]+)"),
             # As of release 7, "Fedora Core" is not called "Fedora".
-            "fedora": re.compile("^Fedora release ([\d\.]+)"),
-            "fedoracore": re.compile("^Fedora Core release ([\d\.]+)"),
-            "mandrake": re.compile("^Mandrake Linux release ([\d\.]+)"),
+            "fedora": re.compile(r"^Fedora release ([\d\.]+)"),
+            "fedoracore": re.compile(r"^Fedora Core release ([\d\.]+)"),
+            "mandrake": re.compile(r"^Mandrake Linux release ([\d\.]+)"),
             # Ignoring the different RHEL flavours (AS, ES, WS) for now.
-            "rhel": re.compile("^Red Hat Enterprise Linux \w{2} release ([\d\.]+)"),
-            "centos": re.compile("^CentOS release ([\d\.]+)"),
-            "suse": re.compile("^SuSE Linux ([\d\.]+)"),
-            "opensuse": re.compile("^openSUSE ([\d\.]+)"),
-            "debian": re.compile("^([\d\.]+)"),
-            "slackware": re.compile("^Slackware ([\d\.]+)"),
-            "gentoo": re.compile("^Gentoo Base System release ([\d\.]+)"),
+            "rhel": re.compile(r"^Red Hat Enterprise Linux \w{2} release ([\d\.]+)"),
+            "centos": re.compile(r"^CentOS release ([\d\.]+)"),
+            "suse": re.compile(r"^SuSE Linux ([\d\.]+)"),
+            "opensuse": re.compile(r"^openSUSE ([\d\.]+)"),
+            "debian": re.compile(r"^([\d\.]+)"),
+            "slackware": re.compile(r"^Slackware ([\d\.]+)"),
+            "gentoo": re.compile(r"^Gentoo Base System release ([\d\.]+)"),
         }
 
         errmsgs = []
@@ -794,7 +799,7 @@ def _split_ver(ver_str):
         >>> _split_ver("1.3a2")
         ('1', '3', 'a', '2')
     """
-    bits = [b for b in re.split("(\.|[a-z])", ver_str) if b != '.']
+    bits = [b for b in re.split(r"(\.|[a-z])", ver_str) if b != '.']
     return tuple(bits)
 
 def _join_ver(ver_tuple):
@@ -860,6 +865,8 @@ int main(int argc, char **argv) { exit(0); }
                            "code: %r" % returncode)
         p = subprocess.Popen("ldd a.out", cwd=tmpdir, shell=True, stdout=subprocess.PIPE)
         ldd, _ = p.communicate()
+        if isinstance(ldd, bytes):
+            ldd = ldd.decode('utf-8', errors='replace')
 
         # Parse the lib versions from the object dump.
         # e.g.: libstdc++-libc6.2-2.so.3
@@ -974,7 +981,7 @@ def _create_temp_dir():
 def _rmtree_on_error(rmFunction, filePath, excInfo):
     if excInfo[0] == OSError:
         # presuming because file is read-only
-        os.chmod(filePath, 0777)
+        os.chmod(filePath, 0o777)
         rmFunction(filePath)
 
 def _rmtree(dirname):
@@ -1107,13 +1114,13 @@ more information."""
     WIDTH=75
     if opts.format is None:
         if rules:
-            print pi.name(*rules)
+            print(pi.name(*rules))
         else:
-            print "%s (%s)" % (pi.name(), pi.fullname())
+            print("%s (%s)" % (pi.name(), pi.fullname()))
     if opts.format == "name":
-        print pi.name(*rules)
+        print(pi.name(*rules))
     if opts.format == "fullname":
-        print pi.fullname()
+        print(pi.fullname())
     elif opts.format == "dict":
         if sys.version_info[:2] >= (2,4):
             pprint(pi.as_dict(), width=WIDTH)
@@ -1122,24 +1129,24 @@ more information."""
             pp = PrettyPrinter(width=WIDTH)
             pp.pprint(pi.as_dict())
     elif opts.format == "xml":
-        print pi.as_xml()
+        print(pi.as_xml())
     elif opts.format == "yaml":
-        print pi.as_yaml()
+        print(pi.as_yaml())
     elif opts.format == "all":
-        print _banner("platform info", length=WIDTH)
-        print pi.name(*rules)
-        print _banner("as_dict", '-', length=WIDTH)
+        print(_banner("platform info", length=WIDTH))
+        print(pi.name(*rules))
+        print(_banner("as_dict", '-', length=WIDTH))
         if sys.version_info[:2] >= (2,4):
             pprint(pi.as_dict(), width=WIDTH)
         else:
             from pprint import PrettyPrinter
             pp = PrettyPrinter(width=WIDTH)
             pp.pprint(pi.as_dict())
-        print _banner("as_xml", '-', length=WIDTH)
-        print pi.as_xml()
-        print _banner("as_yaml", '-', length=WIDTH)
-        print pi.as_yaml()
-        print _banner(None, length=WIDTH)
+        print(_banner("as_xml", '-', length=WIDTH))
+        print(pi.as_xml())
+        print(_banner("as_yaml", '-', length=WIDTH))
+        print(pi.as_yaml())
+        print(_banner(None, length=WIDTH))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,25 @@
+Bug: like the vendored libevent config, nICEr's addrs.c includes
+<sys/sysctl.h> unconditionally on any non-Android, non-Windows UNIX
+(i.e. plain Linux too), but modern Linux no longer ships that header.
+The actual sysctl()-based code further down in this file is already
+correctly scoped to `#if defined(BSD) || defined(DARWIN)`, so Linux
+never uses it -- the include itself is simply unguarded for LINUX.
+Index: media/mtransport/third_party/nICEr/src/stun/addrs.c
+--- a/media/mtransport/third_party/nICEr/src/stun/addrs.c
++++ b/media/mtransport/third_party/nICEr/src/stun/addrs.c
+@@ -44,10 +44,12 @@
+ #else   /* UNIX */
+ #include <sys/param.h>
+ #include <sys/socket.h>
+-#ifndef ANDROID
++#if !defined(ANDROID) && !defined(LINUX)
+ #include <sys/sysctl.h>
+ #include <sys/syslog.h>
++#elif defined(LINUX)
++#include <sys/syslog.h>
+ #else
+ #include <syslog.h>
+ /* Work around an Android NDK < r8c bug */
+ #undef __unused
+ #include <linux/sysctl.h>
+ #endif

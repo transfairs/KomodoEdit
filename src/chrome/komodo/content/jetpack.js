@@ -11,7 +11,7 @@ const [JetPack, require] = (function() {
     var ko = this.ko || {};
     var cache = {};
     const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
-    const { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
+    const jetpackServices = Cu.import("resource://gre/modules/Services.jsm", {}).Services;
     const { main, Loader, resolve, resolveURI } =
         Cu.import('resource://gre/modules/commonjs/toolkit/loader.js', {}).Loader;
     

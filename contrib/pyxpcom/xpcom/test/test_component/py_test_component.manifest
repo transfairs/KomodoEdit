@@ -1,0 +1,5 @@
+interfaces pyxpcom_test.xpt
+contract Python.TestComponent {7EE4BDC6-CB53-42c1-A9E4-616B8E012ABA}
+component {7EE4BDC6-CB53-42c1-A9E4-616B8E012ABA} py_test_component.py
+contract JavaScript.TestComponent {7b7d47bd-2cb3-4b4c-9ca0-d157a87e219a}
+component {7b7d47bd-2cb3-4b4c-9ca0-d157a87e219a} js_test_component.js

@@ -572,7 +572,7 @@
             try {
                 this.log.debug('scintilla init');
                 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
-                const {XPCOMUtils} = Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+                let scintillaXPCOMUtils = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
                 var prefs = Cc['@activestate.com/koPrefService;1'].
                                 getService(Ci.koIPrefService).prefs;
                 // NOTE: This method is really a helper - if you want more
@@ -610,8 +610,8 @@
                     // to signal to scintilla-overlay.xul that we should handle
                     // scintilla commands.
                     let forwarder = new xtk.ForwardingController([this]);
-                    forwarder.QueryInterface = XPCOMUtils.generateQI([Ci.nsIController,
-                                                                      Ci.ISciMozController]);
+                    forwarder.QueryInterface = scintillaXPCOMUtils.generateQI([Ci.nsIController,
+                                                                                Ci.ISciMozController]);
                     for (let prop of Object.getOwnPropertyNames(controller.ISciMozController)) {
                         if (prop in forwarder) {
                             continue;
