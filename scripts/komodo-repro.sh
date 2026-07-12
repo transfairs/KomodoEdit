@@ -9,8 +9,8 @@ PY2_EXE="$PY2_PREFIX/bin/python2.7"
 PY2_SRC_DIR="$CACHE_BASE/src/Python-2.7.18"
 PY2_TARBALL="$CACHE_BASE/src/Python-2.7.18.tgz"
 PY2_URL="https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz"
-MOZ_SRC_TARBALL_URL_DEFAULT="https://github.com/transfairs/komodo-edit-mozilla35-src/releases/download/mozilla-35.0-ko12.10-v4/mozilla-35.0-ko12.10-FIREFOX_35_0_RELEASE-patched-src-v4.tar.gz"
-MOZ_SRC_TARBALL_SHA256_DEFAULT="7988f91b38e42921ace3a5bcc2aea6573894e3a4adb89ad00f74209e42b2c5cd"
+MOZ_SRC_TARBALL_URL_DEFAULT="https://github.com/transfairs/komodo-edit-mozilla35-src/releases/download/mozilla-35.0-ko12.10-v5/mozilla-35.0-ko12.10-FIREFOX_35_0_RELEASE-patched-src-v5.tar.gz"
+MOZ_SRC_TARBALL_SHA256_DEFAULT="75f3ddaf610a07f3bfe9457dcf7de5695c3809653524386514c3fe04018acdd0"
 MOZ_SRC_TARBALL_CACHE="$CACHE_BASE/src/mozilla-35.0-ko12.10-patched-src.tar.gz"
 
 usage() {
