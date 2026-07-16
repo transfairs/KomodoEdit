@@ -1,0 +1,254 @@
+"""Python port of LexUDL.cxx's colorizing runtime (`ColouriseTemplate1Doc` +
+`doActions` + `doColorAction` + `doLookBackTest`), driving Scintilla's
+container-lexing mode instead of a compiled C++ lexer. See lexres.py's
+docstring for context.
+
+Deliberately out of scope for this first pass (see plan doc): `at_eol`
+deferred transitions, incremental re-lex (`synchronizeDocStart` in the
+original) -- this always re-lexes the whole document from position 0, which
+is the same tradeoff editor.py's Pygments-based highlighting already makes.
+Folding is a separate pass in the original and isn't attempted here.
+Delimiter capture (heredocs etc.) uses the whole matched text rather than a
+specific PCRE capture group -- the original supports capturing an arbitrary
+numbered group, which isn't replicated here.
+"""
+import re
+
+from . import lexres as L
+
+_REDO_LIMIT = 1000
+
+
+class UDLInterpreter:
+    def __init__(self, parsed: L.LexRes):
+        self.lexres = parsed
+        for state in parsed.states:
+            transitions = list(state.transitions)
+            if state.eof_transition:
+                transitions.append(state.eof_transition)
+            if state.empty_transition:
+                transitions.append(state.empty_transition)
+            for tran in transitions:
+                if tran.search_type == L.TRAN_SEARCH_REGEX:
+                    # MULTILINE so `$`/`^` mean line boundaries, not just the
+                    # start/end of the whole buffer -- the original matched
+                    # against a per-line PCRE subject (LexUDL.cxx's
+                    # `LexString *p_CurrTextLine`), where `$` naturally meant
+                    # "end of this line"; matching against the full document
+                    # string here needs the flag to get the same meaning.
+                    flags = re.MULTILINE
+                    if tran.ignore_case:
+                        flags |= re.IGNORECASE
+                    tran.compiled_regex = re.compile(tran.search_string, flags)
+
+    def colorize(self, text):
+        """Return a list of (start, end, style_id) spans covering `text`."""
+        spans = []
+        length_doc = len(text)
+        states = self.lexres.states
+        istate = self.lexres.family_default_state.get(L.FAMILY_MARKUP, 1)
+        curr_family = L.FAMILY_MARKUP
+        state_stack = []
+        current_delimiter = ""
+        last_styled = 0
+        redo_count = 0
+
+        def paint(upto_pos, style_num, no_keyword):
+            nonlocal last_styled
+            if style_num < 0 or upto_pos <= last_styled:
+                return
+            fam_info = self.lexres.family_info.get(curr_family)
+            actual_style = style_num
+            if (
+                fam_info is not None
+                and not no_keyword
+                and style_num == fam_info.identifier_style
+                and fam_info.keyword_style >= 0
+            ):
+                token_text = text[last_styled:upto_pos]
+                if token_text in fam_info.keywords:
+                    actual_style = fam_info.keyword_style
+            spans.append((last_styled, upto_pos, actual_style))
+            last_styled = upto_pos
+
+        def style_at(pos):
+            for s, e, st in reversed(spans):
+                if s <= pos < e:
+                    return st
+                if e <= pos:
+                    break
+            return None
+
+        def segment_text(pos, style):
+            """Text of the contiguous same-style run ending at (and
+            including) `pos`, merging adjacent same-style spans -- mirrors
+            getSegmentParts (LexUDL.cxx:2852)."""
+            idx = len(spans) - 1
+            while idx >= 0 and not (spans[idx][0] <= pos < spans[idx][1]):
+                idx -= 1
+            if idx < 0:
+                return pos, text[pos : pos + 1]
+            seg_start = spans[idx][0]
+            idx -= 1
+            while idx >= 0 and spans[idx][2] == style:
+                seg_start = spans[idx][0]
+                idx -= 1
+            return seg_start, text[seg_start : pos + 1]
+
+        def lookback_test_passes(tran, old_pos):
+            """Port of doLookBackTest (LexUDL.cxx:2889)."""
+            if old_pos <= 0 or not tran.token_check:
+                return True
+            fam_info = self.lexres.family_info.get(curr_family)
+            if fam_info is None:
+                return True
+            # The original colors the "upto" span here unconditionally, even
+            # though this candidate transition may still be rejected below
+            # (it needs the text-to-the-left already committed to inspect
+            # it) -- paint() is idempotent for a given position so repeating
+            # this across several rejected candidates is harmless.
+            paint(old_pos, tran.upto_color, tran.no_keyword)
+            lbtests = fam_info.lookback_tests
+            if lbtests is None:
+                return True
+            pos = old_pos - 1
+            while pos > 0:
+                this_style = style_at(pos)
+                if this_style is None or not lbtests.style_in_range(this_style):
+                    return True
+                seg_start, seg_text = segment_text(pos, this_style)
+                action = -1
+                for t in lbtests.tests:
+                    if t.style != this_style:
+                        continue
+                    if t.test_type == L.LBTEST_LIST_ALL:
+                        action = t.action
+                    elif t.test_type == L.LBTEST_LIST_KEYWORDS:
+                        if t.keywords and seg_text in t.keywords:
+                            action = t.action
+                    elif t.test_type == L.LBTEST_LIST_STRINGS:
+                        if t.strings and any(
+                            seg_text.endswith(s) for s in t.strings
+                        ):
+                            action = t.action
+                    if action != -1:
+                        break
+                if action == -1:
+                    action = lbtests.get_default(this_style)
+                if action == L.LBTEST_ACTION_REJECT:
+                    return False
+                elif action == L.LBTEST_ACTION_ACCEPT:
+                    return True
+                else:  # SKIP -- keep walking further back
+                    pos = seg_start - 1
+            return True
+
+        i = 0
+        while i < length_doc:
+            if istate >= len(states):
+                break
+            state_info = states[istate]
+
+            matched_tran = None
+            new_pos = i
+            for tran in state_info.transitions:
+                m_end = None
+                if tran.search_type == L.TRAN_SEARCH_STRING:
+                    if text.startswith(tran.search_string, i):
+                        m_end = i + len(tran.search_string)
+                elif tran.search_type == L.TRAN_SEARCH_REGEX:
+                    m = tran.compiled_regex.match(text, i)
+                    if m:
+                        m_end = m.end()
+                elif tran.search_type == L.TRAN_SEARCH_DELIMITER:
+                    if current_delimiter and text.startswith(current_delimiter, i):
+                        m_end = i + len(current_delimiter)
+                        # Not undoable even if the lookback test below
+                        # rejects this candidate -- matches LexUDL.cxx's
+                        # main loop (3372-3384), which clears it here too.
+                        if not tran.keep_current_delimiter:
+                            current_delimiter = ""
+                if m_end is not None and lookback_test_passes(tran, i):
+                    matched_tran = tran
+                    new_pos = m_end
+                    break
+
+            if matched_tran is None:
+                matched_tran = state_info.empty_transition
+                new_pos = i
+            if matched_tran is None:
+                # No rule matches at all -- shouldn't happen with a complete
+                # grammar; consume one char unstyled so we can't hang.
+                i += 1
+                redo_count = 0
+                continue
+
+            # ---- doActions (LexUDL.cxx:2717) ----
+            if not matched_tran.token_check and i > 0:
+                paint(i, matched_tran.upto_color, matched_tran.no_keyword)
+            paint(new_pos, matched_tran.include_color, matched_tran.no_keyword)
+
+            # LexUDL.cxx sets BufferStateInfo::do_redo from the *current*
+            # transition immediately before calling doActions (main loop,
+            # LexUDL.cxx:3419), so doActions' own do_redo check always
+            # reflects this transition, not the previous one.
+            do_redo = matched_tran.do_redo
+            orig_old_pos = i
+            if matched_tran.search_type == L.TRAN_SEARCH_EMPTY:
+                pass
+            elif do_redo:
+                pass
+            else:
+                i = new_pos
+
+            if matched_tran.clear_current_delimiter:
+                current_delimiter = ""
+            if (
+                matched_tran.search_type == L.TRAN_SEARCH_REGEX
+                and matched_tran.target_delimiter
+            ):
+                current_delimiter = text[orig_old_pos:new_pos]
+
+            new_state = 0
+            new_family = curr_family
+            push_pop = matched_tran.push_pop_state
+            if push_pop > 0:
+                state_stack.append(push_pop)
+            elif push_pop == -1:
+                popped = state_stack.pop() if state_stack else 0
+                new_state = L.sf_get_state(popped)
+                new_family = L.sf_get_family(popped)
+            elif matched_tran.replace_sstate_top > 0:
+                if state_stack:
+                    state_stack[-1] = matched_tran.replace_sstate_top
+
+            if not new_state:
+                new_state = matched_tran.new_state
+                if new_state >= 1:
+                    new_family = matched_tran.new_family
+
+            if 1 <= new_state < len(states):
+                istate = new_state
+                if new_family >= 0 and curr_family != new_family:
+                    curr_family = new_family
+
+            if orig_old_pos != i:
+                redo_count = 0
+            else:
+                redo_count += 1
+                if redo_count > _REDO_LIMIT:
+                    # Runaway redo loop -- force progress, mirroring
+                    # LexUDL.cxx's redoLimit guard (LexUDL.cxx:3404-3416).
+                    do_redo = False
+                    i += 1
+                    redo_count = 0
+
+        if istate < len(states) and states[istate].eof_transition:
+            tran = states[istate].eof_transition
+            if not tran.token_check and i > 0:
+                paint(i, tran.upto_color, tran.no_keyword)
+            paint(length_doc, tran.include_color, tran.no_keyword)
+
+        if last_styled < length_doc:
+            spans.append((last_styled, length_doc, 0))
+        return spans

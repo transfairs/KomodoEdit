@@ -1,0 +1,14 @@
+[project]
+name = "qtedit"
+version = "0.0.1"
+description = "KomodoEdit Qt/PySide6 frontend MVP (see /home/mause/.claude/plans/synthetic-crafting-umbrella.md)"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.10",
+    "pyside6-scintilla>=5.6",
+    "pygments>=2.18",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

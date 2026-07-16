@@ -1,0 +1,56 @@
+name: komodoedit-qt
+version: '0.0.1'
+summary: KomodoEdit Qt/PySide6 frontend (MVP)
+description: |
+  Early native Qt/PySide6 rewrite of the KomodoEdit UI shell, reusing the
+  existing Scintilla-based editing model and the unmodified codeintel2
+  engine. Proof-of-architecture MVP, not feature-complete -- see
+  /home/mause/.claude/plans/synthetic-crafting-umbrella.md for scope.
+
+base: core24
+confinement: devmode
+grade: devel
+# The real Komodo app icon, already in the repo from a prior build rather
+# than duplicated into qtedit/ -- see main_window.py's APP_ICON_PATH.
+icon: ../build/release/main/komodo128.edit.png
+
+apps:
+  komodoedit-qt:
+    command: bin/qtedit
+    extensions: [gnome]
+    plugs:
+      # The gnome extension should wire most of this up already; being
+      # explicit here in case the portal AccessDenied errors are due to
+      # these not being auto-connected in this confinement setup.
+      - desktop
+      - desktop-legacy
+    environment:
+      # Qt doesn't pick these up on its own under Wayland/GNOME: without
+      # QT_WAYLAND_DECORATION there's no titlebar decoration plugin active
+      # at all (no min/max/close buttons), and without QT_QPA_PLATFORMTHEME
+      # Qt never reads GTK's dark-mode/theme setting, so the titlebar stays
+      # light regardless of the desktop theme. Both plugins already ship
+      # inside the PySide6 wheel (wayland-decoration-client/libadwaita.so,
+      # platformthemes/libqgtk3.so) -- they just weren't being selected.
+      QT_WAYLAND_DECORATION: adwaita
+      QT_QPA_PLATFORMTHEME: gtk3
+
+parts:
+  qtedit:
+    plugin: python
+    source: .
+    python-requirements:
+      - requirements.txt
+    stage-packages:
+      - libxkbcommon0
+      - libxkbcommon-x11-0
+      - fontconfig
+    override-build: |
+      craftctl default
+      install -Dm755 "$CRAFT_PART_INSTALL/bin/python3" \
+        "$CRAFT_PART_INSTALL/bin/qtedit-python3" 2>/dev/null || true
+      cat > "$CRAFT_PART_INSTALL/bin/qtedit" <<'EOF'
+      #!/bin/sh
+      exec "$SNAP/bin/python3" -m qtedit "$@"
+      EOF
+      chmod +x "$CRAFT_PART_INSTALL/bin/qtedit"
