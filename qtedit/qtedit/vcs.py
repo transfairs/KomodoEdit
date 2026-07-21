@@ -44,11 +44,20 @@ class LogEntry:
 
 
 def _run(base_dir, args):
-    result = subprocess.run(
-        ["git", "-C", base_dir, *args],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", base_dir, *args],
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        # `git` not on PATH at all (e.g. the packaged Snap's confinement
+        # doesn't expose it) -- every caller already branches on a non-zero
+        # code, so surface it the same way rather than letting an
+        # unhandled exception blow up whatever UI action triggered this
+        # (is_git_repo() is called from main_window.py's project-tree
+        # refresh, so this used to take down the whole Project tab).
+        return 1, "", str(exc)
     return result.returncode, result.stdout, result.stderr
 
 

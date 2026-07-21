@@ -44,9 +44,8 @@ from qtedit.toolbox.tree_model import (
 
 KOMODO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # The real Komodo app icons, already sitting in the repo from a prior build
-# rather than duplicated into qtedit/ -- see codeintel_client.py's
-# DEFAULT_IMPORT_PATHS docstring for the same "reuse prior build artifacts"
-# pattern.
+# rather than duplicated into qtedit/ -- the same "reuse prior build
+# artifacts" pattern used for the codeintel3/stdlibs/*.cix catalogs.
 APP_ICON_PATH = os.path.join(KOMODO_ROOT, "build", "release", "main", "komodo128.edit.png")
 
 
@@ -800,8 +799,9 @@ class MainWindow(QMainWindow):
         self._refresh_toolbox()
 
     def _build_codeintel(self):
-        # Drives the existing, unmodified codeintel2 OOP engine (Python 2
-        # subprocess) via the OOP protocol -- see codeintel_client.py.
+        # Drives the codeintel3 OOP engine (Python 3 port of codeintel2,
+        # runs in-process-family via a plain subprocess of this same
+        # interpreter) via the OOP protocol -- see codeintel_client.py.
         # Scoped to saved Python files only for this MVP.
         self.codeintel = CodeIntelClient(parent=self)
         self.codeintel.errorOccurred.connect(
@@ -828,36 +828,72 @@ class MainWindow(QMainWindow):
             return
         pos = editor.currentPos()
         text = editor.current_text()
+        # The OOP round-trip is async and, on a cold codeintel3 cache (first
+        # import-resolving request in a session -- has to scan site-packages
+        # and parse the ~9MB stdlib catalog), can take several real seconds
+        # with otherwise zero visual feedback. Show something immediately so
+        # it doesn't look stuck, and snapshot the edit generation so a
+        # response that arrives after further edits gets dropped instead of
+        # being applied at a now-wrong position (see _on_eval).
+        self.statusBar().showMessage("Suche Vervollständigungen…")
+        generation = editor.edit_generation
         self.codeintel.scan_document(
             path, text, "Python",
-            callback=lambda resp: self._on_scanned(editor, path, pos),
+            callback=lambda resp: self._on_scanned(editor, path, pos, generation),
         )
 
-    def _on_scanned(self, editor, path, pos):
+    def _drop_stale_completion(self):
+        # Called wherever an in-flight completion request turns out to be
+        # stale (the buffer changed since it was triggered). Only clears
+        # the "Suche Vervollständigungen…" placeholder, not some unrelated
+        # message that may have shown up in the meantime.
+        if self.statusBar().currentMessage() == "Suche Vervollständigungen…":
+            self.statusBar().clearMessage()
+
+    def _on_scanned(self, editor, path, pos, generation):
+        if editor.edit_generation != generation:
+            self._drop_stale_completion()
+            return
         self.codeintel.trg_from_pos(
-            path, pos, lambda resp: self._on_trg(editor, pos, resp), implicit=False
+            path, pos, lambda resp: self._on_trg(editor, pos, resp, generation), implicit=False
         )
 
-    def _on_trg(self, editor, pos, resp):
+    def _on_trg(self, editor, pos, resp, generation):
+        if editor.edit_generation != generation:
+            self._drop_stale_completion()
+            return
         trg = resp.get("trg")
         if not trg:
             self.statusBar().showMessage("Keine Vervollständigung an dieser Position", 3000)
             return
-        self.codeintel.eval_trigger(trg, lambda resp: self._on_eval(editor, pos, resp))
+        self.codeintel.eval_trigger(trg, lambda resp: self._on_eval(editor, pos, resp, generation))
 
-    def _on_eval(self, editor, pos, resp):
+    def _on_eval(self, editor, pos, resp, generation):
+        if editor.edit_generation != generation:
+            # The buffer changed while this request was in flight -- pos
+            # (and possibly the whole trigger) no longer applies. Drop it
+            # silently rather than inserting/popping up at a stale position;
+            # the user can just re-trigger (fast now that the codeintel3
+            # process has warmed its caches for this session).
+            self._drop_stale_completion()
+            return
         cplns = resp.get("cplns")
         if not cplns:
             self.statusBar().showMessage(
                 resp.get("message", "Keine Vervollständigungen gefunden"), 3000
             )
             return
+        self.statusBar().clearMessage()
         self._pending_editor = editor
         self._pending_pos = pos
         x = editor.pointXFromPosition(pos)
         y = editor.pointYFromPosition(pos) + 20
-        global_pos = editor.mapToGlobal(QPoint(x, y))
-        self.completion_popup.show_completions(cplns, global_pos)
+        # completion_popup is a plain child widget of this window (see its
+        # docstring for why -- not a top-level Qt.WindowType.Popup), so it
+        # needs a position in *this window's* coordinate system, not a
+        # global/screen one.
+        local_pos = self.mapFromGlobal(editor.mapToGlobal(QPoint(x, y)))
+        self.completion_popup.show_completions(cplns, local_pos)
 
     def _insert_completion(self, name):
         editor, pos = self._pending_editor, self._pending_pos

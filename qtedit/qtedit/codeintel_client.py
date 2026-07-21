@@ -1,47 +1,36 @@
-"""Client for Komodo's existing codeintel2 out-of-process (OOP) driver.
+"""Client for the codeintel3 out-of-process (OOP) driver.
 
-src/codeintel/lib/codeintel2/oop/driver.py already runs standalone, talking
-JSON over stdio with a simple <decimal-byte-length><json-bytes> framing (no
+codeintel3 (qtedit/qtedit/codeintel3/) is a Python-3 port of Komodo's
+original codeintel2 engine (src/codeintel/lib/codeintel2/), covering the
+~19,800 LOC slice qtedit actually exercises (Python-language scan/trigger/
+eval). See project memory (modernization_roadmap.md) for how the port was
+scoped and verified. codeintel3/oop/driver.py runs standalone, talking JSON
+over stdio with a simple <decimal-byte-length><json-bytes> framing (no
 delimiter -- the reader stops consuming digits as soon as it sees the JSON's
 opening "{"). Every request carries a "command" and a "req_id"; every
 response echoes that "req_id" back so callers can be matched to callbacks.
-This client re-implements that framing in Python 3/Qt (QProcess) so the new
-frontend can drive the *existing*, unmodified codeintel2 engine -- it does
-not touch codeintel2 itself.
+This client re-implements that framing in Qt (QProcess).
 
-codeintel2 only runs under Python 2 (its own oop/driver.py is
-`#!/usr/bin/env python2` and imports Python-2-only stdlib names), so the
-driver itself is spawned as a Python 2 subprocess; this client is plain
-Python 3 talking to it over a pipe, so the language split is invisible past
-this module.
+Unlike codeintel2 (Python-2-only: `#!/usr/bin/env python2`, Python-2-only
+stdlib imports), codeintel3 runs under the same Python 3 interpreter as
+qtedit itself -- no separate bootstrap interpreter, no --import-path dance
+(apsw is a real pip dependency; SilverCity/langinfo/textinfo/process/which
+are qtedit/qtedit/ sibling modules already importable once that directory
+is on sys.path, which oop_driver_main.py sets up itself).
 """
 import itertools
 import json
 import os
+import sys
 
 from PySide6.QtCore import QObject, QProcess, Signal
 
-KOMODO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OOP_DRIVER = os.path.join(KOMODO_ROOT, "src", "codeintel", "bin", "oop-driver.py")
-DEFAULT_PYTHON2 = os.path.expanduser("~/.cache/komodo-repro/python2.7/bin/python2.7")
-
-# codeintel2 needs a handful of compiled/pure-Python dependencies
-# (SilverCity, apsw, ciElementTree, langinfo) that aren't on a plain
-# bootstrap Python 2.7's path. A full `bk build` would assemble these into
-# one siloed site-packages tree; short of that, a prior partial build
-# already produced the compiled pieces under build/release/, so point
-# straight at those rather than rebuilding them.
-DEFAULT_IMPORT_PATHS = [
-    os.path.join(KOMODO_ROOT, "build", "release", "silvercity", "build", "lib.linux-x86_64-2.7"),
-    os.path.join(KOMODO_ROOT, "build", "release", "apsw", "build", "lib.linux-x86_64-2.7"),
-    os.path.join(KOMODO_ROOT, "build", "release", "codeintel", "lib"),
-    os.path.join(KOMODO_ROOT, "src", "python-sitelib"),
-    os.path.join(KOMODO_ROOT, "build", "release", "contrib", "zope", "cachedescriptors", "build", "lib"),
-]
+OOP_DRIVER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "codeintel3", "oop_driver_main.py")
 
 
 class CodeIntelClient(QObject):
-    """Async client for the codeintel2 OOP driver.
+    """Async client for the codeintel3 OOP driver.
 
     Fire-and-forget requests go through `request()`, which returns the
     req_id; pass a callback to get invoked with the matching response dict
@@ -52,35 +41,25 @@ class CodeIntelClient(QObject):
 
     errorOccurred = Signal(str)
 
-    def __init__(self, python2_exe=None, import_paths=None, extra_args=None, parent=None):
+    def __init__(self, python_exe=None, extra_args=None, parent=None):
         super().__init__(parent)
-        self._python2_exe = python2_exe or DEFAULT_PYTHON2
+        self._python_exe = python_exe or sys.executable
         self._req_ids = itertools.count(1)
         self._callbacks = {}
         self._recv_buf = b""
         self._expected_len = None
 
-        # Deliberately no --log-file: passing the magic values "stdout" or
-        # "stderr" makes oop-driver.py repoint sys.stdout at sys.stderr's
-        # stream object, which then makes it hand us stderr's fd as the
-        # protocol channel -- silently breaking framing. Omitting it lets
-        # oop-driver.py's own DummyStream swallow log output and leaves the
-        # stdio fds alone. (Pass extra_args=["--log-file", "/some/real/path",
-        # ...] for debugging -- a real file path is fine, just not the
-        # "stdout"/"stderr" magic values.)
         args = [OOP_DRIVER]
-        for path in import_paths if import_paths is not None else DEFAULT_IMPORT_PATHS:
-            args += ["--import-path", path]
         if extra_args:
             args += extra_args
 
         self._proc = QProcess(self)
-        self._proc.setProgram(self._python2_exe)
+        self._proc.setProgram(self._python_exe)
         self._proc.setArguments(args)
         self._proc.readyReadStandardOutput.connect(self._on_ready_read)
         self._proc.readyReadStandardError.connect(self._on_stderr)
         self._proc.errorOccurred.connect(
-            lambda err: self.errorOccurred.emit(f"codeintel2 process error: {err}")
+            lambda err: self.errorOccurred.emit(f"codeintel3 process error: {err}")
         )
         self._proc.start()
 
@@ -118,7 +97,7 @@ class CodeIntelClient(QObject):
         return self.request("eval", trg=trg, callback=callback)
 
     def _on_stderr(self):
-        # codeintel2's own logging; surfaced for debugging, not parsed.
+        # codeintel3's own logging; surfaced for debugging, not parsed.
         self._proc.readAllStandardError()
 
     def _on_ready_read(self):
@@ -158,7 +137,7 @@ class CodeIntelClient(QObject):
         try:
             data = json.loads(frame.decode("utf-8"))
         except ValueError:
-            self.errorOccurred.emit(f"codeintel2: malformed frame: {frame!r}")
+            self.errorOccurred.emit(f"codeintel3: malformed frame: {frame!r}")
             return
         req_id = data.get("req_id")
         callback = self._callbacks.pop(req_id, None) if req_id is not None else None

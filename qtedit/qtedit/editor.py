@@ -170,6 +170,13 @@ class CodeEditor(ScintillaEdit):
         # back to the toolbox item's .komodotool file, not a real path.
         self.toolbox_item = None
 
+        # Bumped on every real text change (see _on_modified below). Used
+        # by main_window.py to detect and drop stale codeintel completion
+        # responses -- the OOP round-trip is async and can take a few
+        # seconds on a cold cache, so the buffer may well have changed by
+        # the time a response arrives.
+        self.edit_generation = 0
+
         self.setCodePage(SC_CP_UTF8)
         # styleClearAll() copies STYLE_DEFAULT's current attributes to every
         # style, so it must run *after* the default fore/back are set, not
@@ -283,6 +290,8 @@ class CodeEditor(ScintillaEdit):
             Scintilla.ModificationFlags.InsertText
             | Scintilla.ModificationFlags.DeleteText
         )
+        if changed_text:
+            self.edit_generation += 1
         if changed_text and not self._rehighlighting:
             self._rehighlight()
 

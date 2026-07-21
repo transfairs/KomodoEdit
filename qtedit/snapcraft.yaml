@@ -45,6 +45,7 @@ parts:
       - libxkbcommon0
       - libxkbcommon-x11-0
       - fontconfig
+      - git
     override-build: |
       craftctl default
       install -Dm755 "$CRAFT_PART_INSTALL/bin/python3" \

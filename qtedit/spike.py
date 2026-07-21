@@ -6,6 +6,8 @@ import sys
 from PySide6.QtWidgets import QApplication, QMainWindow
 from pyside6_scintilla import ScintillaEdit
 
+
+
 SAMPLE = '''def greet(name):
     """Say hello."""
     print("Hello, " + name)
