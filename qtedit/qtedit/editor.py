@@ -18,6 +18,7 @@ from pygments.util import ClassNotFound
 from pygments.token import Token
 from pyside6_scintilla import ScintillaEdit, Scintilla
 
+from qtedit import editor_commands
 from qtedit.prefs import get_global_prefs
 from qtedit.udl import styles as udl_styles
 from qtedit.udl.interpreter import FOLD_LEVEL_BASE, UDLInterpreter
@@ -175,6 +176,29 @@ def _style_id_for(token_type):
     return STYLE_DEFAULT
 
 
+def _udl_language_for_filename(filename):
+    lower_basename = os.path.basename(filename).lower()
+    udl_language = UDL_FILENAMES.get(lower_basename)
+    if udl_language is None:
+        for suffix, language in UDL_FILENAME_SUFFIXES.items():
+            if lower_basename.endswith(suffix):
+                return language
+        udl_language = UDL_EXTENSIONS.get(os.path.splitext(lower_basename)[1])
+    return udl_language
+
+
+def language_for_filename(filename):
+    """Display name of the language a file would open in, from its name
+    only (no content sniffing): for icons in Recent Files and the like."""
+    udl_language = _udl_language_for_filename(filename)
+    if udl_language and find_lexres_for_language(udl_language):
+        return udl_language
+    try:
+        return get_lexer_for_filename(filename).name
+    except ClassNotFound:
+        return None
+
+
 def _editor_font():
     installed = set(QFontDatabase.families())
     for face in EDITOR_FONT_FACES:
@@ -257,6 +281,8 @@ class CodeEditor(ScintillaEdit):
         self.markerDefine(Scintilla.MarkerSymbol.Circle, MARKER_BREAKPOINT_COND)
         self.markerSetBack(MARKER_BREAKPOINT_COND, BREAKPOINT_COND_COLOR)
         self.markerSetFore(MARKER_BREAKPOINT_COND, FOREGROUND)
+        # Komodo's bookmark pixmap shares the symbol margin.
+        editor_commands.setup_bookmark_marker(self, BREAKPOINT_MARGIN)
 
         # Current-execution-line highlight: a full-line background marker,
         # not tied to any margin -- set/cleared by main_window.py while a
@@ -312,17 +338,7 @@ class CodeEditor(ScintillaEdit):
             self._apply_editor_prefs()
 
     def set_lexer_for_filename(self, filename, text=""):
-        basename = os.path.basename(filename)
-        lower_basename = basename.lower()
-        _root, ext = os.path.splitext(basename)
-        udl_language = UDL_FILENAMES.get(lower_basename)
-        if udl_language is None:
-            for suffix, language in UDL_FILENAME_SUFFIXES.items():
-                if lower_basename.endswith(suffix):
-                    udl_language = language
-                    break
-        if udl_language is None:
-            udl_language = UDL_EXTENSIONS.get(ext.lower())
+        udl_language = _udl_language_for_filename(filename)
         if udl_language and self._set_udl_language(udl_language):
             return
         self._udl_interpreter = None
@@ -367,6 +383,14 @@ class CodeEditor(ScintillaEdit):
         if self._lexer is not None:
             return self._lexer.name
         return None
+
+    def language_names(self):
+        """Candidate Komodo language names for this buffer: the display
+        name, then the Pygments aliases ("Batchfile" is Komodo's "Batch")."""
+        names = [self.language_name()]
+        if self._udl_interpreter is None and self._lexer is not None:
+            names.extend(self._lexer.aliases)
+        return [n for n in names if n]
 
     def current_text(self):
         length = self.length()

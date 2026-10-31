@@ -21,6 +21,9 @@ DEFAULT_PREFS = {
     "useTabs": True,
     "tabWidth": 8,
     "indentWidth": 4,
+    # src/prefs/prefs.p.xml
+    "mruFileSize": 30,
+    "mruProjectSize": 15,
 }
 
 

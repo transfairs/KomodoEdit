@@ -34,10 +34,12 @@ from qtedit.debugger import breakpoint_store
 from qtedit.debugger.breakpoint_dialog import BreakpointConditionDialog
 from qtedit.debugger.dbgp import DbgpSession
 from qtedit.debugger.session import DebugSession
-from qtedit.editor import LINE_NUMBER_MARGIN, UDL_LANGUAGES, CodeEditor
+from qtedit import editor_commands
+from qtedit.editor import FOLD_MARGIN, LINE_NUMBER_MARGIN, UDL_LANGUAGES, CodeEditor, language_for_filename
 from qtedit.find_bar import SEARCH_FILES, SEARCH_PROJECT, FindFrame
 from qtedit.incremental_search import IncrementalSearchBar
 from qtedit.menus import Command, MenuBuilder, add_window_shortcut, load_bindings
+from qtedit import mru
 from qtedit import find_in_files
 from qtedit.prefs import get_global_prefs
 from qtedit.prefs_dialog import PreferencesDialog
@@ -118,6 +120,7 @@ class MainWindow(QMainWindow):
         self._prefs_dialog = None
         self._last_replace_undo = []
         self._running_processes = []
+        self._closed_tabs = mru.ClosedTabs()
         self._build_menu()
         self._build_project_tree(project_dir or os.getcwd())
         self._build_toolbox()
@@ -207,11 +210,15 @@ class MainWindow(QMainWindow):
         self._menu_builder = MenuBuilder(self, self._komodo_commands(), {
             "menu_view_tabs": self._fill_tabs_and_sidebars_menu,
             "menu_viewAsLanguage": self._fill_view_as_language_menu,
+            "menu_recentlyClosedTabs": self._fill_recently_closed_tabs_menu,
+            "menu_mruFiles": self._fill_recent_files_menu,
+            "menu_recentProjects": self._fill_recent_projects_menu,
         })
         self._menu_builder.build(self.menuBar(), extra_menus=[("View", self._build_debug_menu())])
         # Keybindings of commands that have no menu item.
         bindings = load_bindings()
-        for command_id in ("cmd_findPrevious", "cmd_viewBottomPane", "cmd_focusEditor"):
+        for command_id in ("cmd_findPrevious", "cmd_viewBottomPane", "cmd_focusEditor",
+                           "cmd_reopenLastClosedTab"):
             add_window_shortcut(self, bindings[command_id], self._komodo_commands()[command_id].run)
         self._build_toolbar()
 
@@ -223,11 +230,48 @@ class MainWindow(QMainWindow):
                 getattr(editor, method_name)(*args)
         return run
 
+    def _on_editor(self, func, *args):
+        """Command body calling func(current editor, *args)."""
+        def run():
+            editor = self.tabs.currentWidget()
+            if editor is not None:
+                func(editor, *args)
+        return run
+
+    def _comment_delimiters(self):
+        editor = self.tabs.currentWidget()
+        return editor_commands.comment_delimiters(editor.language_names()) if editor is not None else None
+
+    def _comment(self, commenting):
+        info = self._comment_delimiters()
+        if info is not None:
+            (editor_commands.comment if commenting else editor_commands.uncomment)(
+                self.tabs.currentWidget(), info)
+
+    def _convert(self, converter):
+        editor = self.tabs.currentWidget()
+        if editor is None:
+            return
+        try:
+            editor_commands.convert_selection_by_line(editor, converter)
+        except ValueError as exc:  # From Hexadecimal on non-hex text
+            self.status_bar.showMessage(str(exc), 5000)
+
+    def _tab_width(self):
+        return get_global_prefs().get("tabWidth") or 8
+
+    def _bookmark_goto(self, func, message):
+        editor = self.tabs.currentWidget()
+        if editor is not None and not func(editor):
+            self.status_bar.showMessage(message, 5000)
+
     def _komodo_commands(self):
         if getattr(self, "_commands", None) is not None:
             return self._commands
         editor = self.tabs.currentWidget
         has_project = lambda: self._project is not None  # noqa: E731
+        has_editor = lambda: editor() is not None  # noqa: E731
+        can_fold = lambda: editor() is not None and editor().marginWidthN(FOLD_MARGIN) > 0  # noqa: E731
 
         def view_toggle(getter, setter):
             return Command(
@@ -247,6 +291,7 @@ class MainWindow(QMainWindow):
             "cmd_saveAs": Command(self.save_current_as),
             "cmd_saveAll": Command(self._save_all),
             "cmd_quit": Command(self.close),
+            "cmd_reopenLastClosedTab": Command(self._reopen_last_closed_tab),
             # Edit
             "cmd_undo": Command(self._editor_call("undo")),
             "cmd_redo": Command(self._editor_call("redo")),
@@ -267,8 +312,23 @@ class MainWindow(QMainWindow):
             "cmd_startIncrementalSearch": Command(self.start_incremental_search),
             "cmd_editPrefs": Command(self.open_preferences),
             # Code
-            "cmd_convertUpperCase": Command(self._editor_call("upperCase")),
-            "cmd_convertLowerCase": Command(self._editor_call("lowerCase")),
+            "cmd_comment": Command(lambda: self._comment(True),
+                                   enabled=lambda: self._comment_delimiters() is not None),
+            "cmd_uncomment": Command(lambda: self._comment(False),
+                                     enabled=lambda: self._comment_delimiters() is not None),
+            "cmd_indent": Command(self._editor_call("tab")),
+            "cmd_dedent": Command(self._editor_call("backTab")),
+            "cmd_tabify": Command(lambda: self._on_editor(editor_commands.tabify, self._tab_width())()),
+            "cmd_untabify": Command(lambda: self._on_editor(editor_commands.untabify, self._tab_width())()),
+            "cmd_join": Command(self._on_editor(editor_commands.join_lines)),
+            "cmd_cleanLineEndings": Command(self._on_editor(editor_commands.clean_line_endings)),
+            "cmd_removeTrailingWhitespace": Command(
+                self._on_editor(editor_commands.remove_trailing_whitespace)),
+            "cmd_convertUpperCase": Command(lambda: self._convert(str.upper)),
+            "cmd_convertLowerCase": Command(lambda: self._convert(str.lower)),
+            "cmd_convertTitleCase": Command(lambda: self._convert(editor_commands.title_case)),
+            "cmd_convertToHex": Command(lambda: self._convert(editor_commands.to_hex)),
+            "cmd_convertFromHex": Command(lambda: self._convert(editor_commands.from_hex)),
             # Komodo's Ctrl+Space is word completion and Ctrl+J codeintel;
             # qtedit has only codeintel completion, so both trigger it.
             "cmd_completeWord": Command(self.trigger_autocomplete),
@@ -277,6 +337,22 @@ class MainWindow(QMainWindow):
             "cmd_gotoLine": Command(self._goto_line),
             "cmd_jumpToMatchingBrace": Command(self._jump_to_matching_brace),
             "cmd_editCenterVertically": Command(self._editor_call("verticalCentreCaret")),
+            "cmd_editMoveCurrentLineToTop": Command(
+                self._on_editor(editor_commands.move_current_line_to_top)),
+            "cmd_jumpToParentFold": Command(
+                self._on_editor(editor_commands.jump_to_parent_fold), enabled=can_fold),
+            "cmd_jumpToPreviousFold": Command(
+                self._on_editor(editor_commands.jump_to_previous_fold), enabled=can_fold),
+            "cmd_jumpToNextFold": Command(
+                self._on_editor(editor_commands.jump_to_next_fold), enabled=can_fold),
+            "cmd_bookmarkToggle": Command(
+                self._on_editor(editor_commands.toggle_bookmark), enabled=has_editor),
+            "cmd_bookmarkGotoNext": Command(lambda: self._bookmark_goto(
+                editor_commands.goto_next_bookmark, "No next bookmark can be found")),
+            "cmd_bookmarkGotoPrevious": Command(lambda: self._bookmark_goto(
+                editor_commands.goto_previous_bookmark, "No previous bookmark can be found")),
+            "cmd_bookmarkRemoveAll": Command(
+                self._on_editor(editor_commands.remove_all_bookmarks), enabled=has_editor),
             "cmd_focusEditor": Command(self._return_focus_to_editor),
             # View
             "cmd_toggleToolbars": Command(
@@ -433,6 +509,31 @@ class MainWindow(QMainWindow):
     def _close_all_tabs(self):
         for i in reversed(range(self.tabs.count())):
             self._close_tab(i)
+
+    def _mru_icon(self, path):
+        return file_icon(language_for_filename(path))
+
+    def _fill_recent_files_menu(self, menu):
+        mru.fill_menu(menu, get_global_prefs(), mru.FILE_LIST, self.open_file, icon_for=self._mru_icon)
+
+    def _fill_recent_projects_menu(self, menu):
+        # uilayout: limit 5, then "More", plus the manage item (whose
+        # dialog qtedit doesn't have yet).
+        mru.fill_menu(menu, get_global_prefs(), mru.PROJECT_LIST, self.open_project_path, limit=5,
+                      manage=("&Manage the Most Recent Projects List", None))
+
+    def _fill_recently_closed_tabs_menu(self, menu):
+        self._closed_tabs.fill_menu(menu, self._reopen_closed_tab,
+                                    load_bindings().get("cmd_reopenLastClosedTab"))
+
+    def _reopen_closed_tab(self, path):
+        self._closed_tabs.discard(path)
+        self.open_file(path)
+
+    def _reopen_last_closed_tab(self):
+        path = self._closed_tabs.pop()
+        if path is not None:
+            self.open_file(path)
 
     def _save_all(self):
         current = self.tabs.currentIndex()
@@ -1037,6 +1138,7 @@ class MainWindow(QMainWindow):
             path += project_model.PROJECT_EXTENSION
         name = os.path.splitext(os.path.basename(path))[0]
         self._project = project_model.create_project(path, name)
+        mru.add(get_global_prefs(), mru.PROJECT_LIST, os.path.abspath(path))
         self._show_project_tree()
         self._refresh_toolbox()
         self._refresh_vcs()
@@ -1046,13 +1148,16 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Project", filter=f"Komodo Project (*{project_model.PROJECT_EXTENSION})"
         )
-        if not path:
-            return
+        if path:
+            self.open_project_path(path)
+
+    def open_project_path(self, path):
         try:
             self._project = project_model.load_project(path)
         except OSError as exc:
             QMessageBox.warning(self, "Open Project", f"Could not open {path}:\n{exc}")
             return
+        mru.add(get_global_prefs(), mru.PROJECT_LIST, os.path.abspath(path))
         self._show_project_tree()
         self._refresh_toolbox()
         self._refresh_vcs()
@@ -1409,6 +1514,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._save_workspace()
+        for path in reversed(self._open_file_paths()):
+            mru.add(get_global_prefs(), mru.FILE_LIST, os.path.abspath(path))
         if self._project is not None:
             self._save_session()
         for sess in list(self._debug_sessions.values()):
@@ -1554,6 +1661,11 @@ class MainWindow(QMainWindow):
         if index < 0:
             return
         widget = self.tabs.widget(index)
+        if widget.filepath:
+            # views-editor.p.xml closeUnconditionally: files enter the MRU
+            # when their view closes.
+            mru.add(get_global_prefs(), mru.FILE_LIST, os.path.abspath(widget.filepath))
+            self._closed_tabs.note(widget.filepath)
         self.tabs.removeTab(index)
         widget.deleteLater()
         if self.tabs.count() == 0:

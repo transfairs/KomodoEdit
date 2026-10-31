@@ -1,0 +1,824 @@
+{
+ "comments": {
+  "APDL": {
+   "line": [
+    "/COM,"
+   ]
+  },
+  "ActionScript": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Ada": {
+   "line": [
+    "--"
+   ]
+  },
+  "AngularJS": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Apache": {
+   "line": [
+    "#"
+   ]
+  },
+  "Assembler": {
+   "line": [
+    ";"
+   ]
+  },
+  "Avenue": {
+   "block": [
+    [
+     "'--",
+     "'--"
+    ]
+   ],
+   "line": [
+    "'--"
+   ]
+  },
+  "Baan": {
+   "block": [
+    [
+     "dllusage",
+     "enddllusage"
+    ]
+   ],
+   "line": [
+    "|"
+   ]
+  },
+  "Bash": {
+   "line": [
+    "#"
+   ]
+  },
+  "Batch": {
+   "line": [
+    "rem ",
+    "REM "
+   ]
+  },
+  "BlitzBasic": {
+   "line": [
+    "'",
+    "rem ",
+    "REM "
+   ]
+  },
+  "Bullant": {
+   "block": [
+    [
+     "@off",
+     "@on"
+    ]
+   ],
+   "line": [
+    "#"
+   ]
+  },
+  "C#": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "C++": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "CMake": {
+   "line": [
+    "#"
+   ]
+  },
+  "CSS": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "markup": "*"
+  },
+  "Cobol": {
+   "line": [
+    ";"
+   ]
+  },
+  "CoffeeScript": {
+   "line": [
+    "#"
+   ],
+   "markup": "*"
+  },
+  "ConTeX": {
+   "line": [
+    "%"
+   ]
+  },
+  "Django": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Docker": {
+   "block": [],
+   "line": [
+    "#"
+   ]
+  },
+  "EJS": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "EScript": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Eiffel": {
+   "line": [
+    "--"
+   ]
+  },
+  "Erlang": {
+   "line": [
+    "%"
+   ]
+  },
+  "Flagship": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//~"
+   ],
+   "markup": "*"
+  },
+  "Forth": {
+   "line": [
+    "\\"
+   ]
+  },
+  "Fortran": {
+   "line": [
+    "!",
+    "C "
+   ]
+  },
+  "Fortran 77": {
+   "line": [
+    "!",
+    "C "
+   ]
+  },
+  "FreeBasic": {
+   "line": [
+    "'",
+    "rem ",
+    "REM "
+   ]
+  },
+  "GetText": {
+   "line": [
+    "#"
+   ]
+  },
+  "Go": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Gui4Cli": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "HLSL": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "HTML": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "HTML5": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Haml": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Haskell": {
+   "line": [
+    "--"
+   ]
+  },
+  "IDL": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Ini": {
+   "line": [
+    ";",
+    "#",
+    "!"
+   ]
+  },
+  "JSERB": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "JSON": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Java": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "JavaScript": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Jinja2": {
+   "block": [
+    [
+     "{#",
+     "#}"
+    ]
+   ],
+   "line": [
+    "##"
+   ]
+  },
+  "Kix": {
+   "line": [
+    ";"
+   ]
+  },
+  "Komodo Snippet": {
+   "block": [
+    [
+     "<%#",
+     "%>"
+    ]
+   ]
+  },
+  "LaTeX": {
+   "line": [
+    "%"
+   ]
+  },
+  "LaravelBlade": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Less": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Lisp": {
+   "line": [
+    ";"
+   ]
+  },
+  "Lout": {
+   "line": [
+    "#"
+   ]
+  },
+  "Lua": {
+   "block": [
+    [
+     "--[[",
+     "]]"
+    ]
+   ],
+   "line": [
+    "--"
+   ]
+  },
+  "MXML": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Makefile": {
+   "line": [
+    "#"
+   ]
+  },
+  "Markdown": {
+   "line": [
+    ";"
+   ]
+  },
+  "Mason": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Matlab": {
+   "line": [
+    "%",
+    "#"
+   ]
+  },
+  "Metapost": {
+   "line": [
+    "%"
+   ]
+  },
+  "MySQL": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "--"
+   ],
+   "markup": "*"
+  },
+  "Node.js": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Objective Caml": {
+   "block": [
+    [
+     "(*",
+     "*)"
+    ]
+   ],
+   "markup": "*"
+  },
+  "Octave": {
+   "line": [
+    "#",
+    "%"
+   ]
+  },
+  "PHP": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//",
+    "#"
+   ],
+   "markup": "*"
+  },
+  "PL-SQL": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "--"
+   ],
+   "markup": "*"
+  },
+  "POVRay": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Pascal": {
+   "block": [
+    [
+     "{",
+     "}"
+    ],
+    [
+     "(*",
+     "*)"
+    ]
+   ],
+   "markup": "*"
+  },
+  "Perl": {
+   "line": [
+    "#"
+   ]
+  },
+  "PostScript": {
+   "line": [
+    "%"
+   ]
+  },
+  "PowerBasic": {
+   "line": [
+    "rem ",
+    "REM "
+   ]
+  },
+  "PowerShell": {
+   "line": [
+    "# "
+   ]
+  },
+  "PureBasic": {
+   "line": [
+    "'",
+    "rem ",
+    "REM "
+   ]
+  },
+  "Python": {
+   "line": [
+    "# ",
+    "#"
+   ]
+  },
+  "Python3": {
+   "line": [
+    "# ",
+    "#"
+   ]
+  },
+  "R": {
+   "block": [],
+   "line": [
+    "#"
+   ]
+  },
+  "REBOL": {
+   "line": [
+    ";",
+    ";;"
+   ]
+  },
+  "RHTML": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Ruby": {
+   "line": [
+    "#"
+   ]
+  },
+  "SCSS": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "SML": {
+   "block": [
+    [
+     "(*",
+     "*)"
+    ]
+   ],
+   "markup": "*"
+  },
+  "SQL": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "--"
+   ],
+   "markup": "*"
+  },
+  "Sass": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "markup": "*"
+  },
+  "Scheme": {
+   "line": [
+    ";"
+   ]
+  },
+  "Scriptol": {
+   "line": [
+    "`"
+   ]
+  },
+  "Specman-E": {
+   "line": [
+    "//"
+   ]
+  },
+  "Swift": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "TADS3": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "Tcl": {
+   "line": [
+    "#"
+   ]
+  },
+  "TeX": {
+   "line": [
+    "%"
+   ]
+  },
+  "TemplateToolkit": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "Twig": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "TypeScript": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "VBScript": {
+   "line": [
+    "'",
+    "rem ",
+    "REM "
+   ]
+  },
+  "VHDL": {
+   "line": [
+    "--"
+   ]
+  },
+  "Verilog": {
+   "block": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "line": [
+    "//"
+   ],
+   "markup": "*"
+  },
+  "VisualBasic": {
+   "line": [
+    "'",
+    "rem ",
+    "REM "
+   ]
+  },
+  "XBL": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "XML": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "XSLT": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "XUL": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "YAML": {
+   "line": [
+    "#"
+   ]
+  },
+  "epMojo": {
+   "block": [
+    [
+     "<!--",
+     "-->"
+    ]
+   ]
+  },
+  "nnCrontab": {
+   "line": [
+    "#"
+   ]
+  }
+ },
+ "source": "Komodo 12.10 src/ commentDelimiterInfo"
+}
