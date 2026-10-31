@@ -40,7 +40,7 @@ from qtedit.find_bar import SEARCH_FILES, SEARCH_PROJECT, FindFrame
 from qtedit.incremental_search import IncrementalSearchBar
 from qtedit.menus import Command, MenuBuilder, add_window_shortcut, load_bindings
 from qtedit import mru
-from qtedit.history import EditorHistory
+from qtedit.history import RESTORE_PREF, EditorHistory, default_db_path
 from qtedit import find_in_files
 from qtedit.prefs import get_global_prefs
 from qtedit.prefs_dialog import PreferencesDialog
@@ -48,6 +48,7 @@ from qtedit.projects import model as project_model
 from qtedit.projects.tree_model import IS_FILE_ROLE, NODE_ROLE, build_project_model
 from qtedit import session
 from qtedit.skin.css import komodo_stylesheet
+from qtedit.save_dialog import SaveModifiedDialog
 from qtedit.statusbar import EditorStatusBar, file_icon
 from qtedit import vcs
 from qtedit.vcs_dock import VCSPanel
@@ -86,7 +87,9 @@ class MainWindow(QMainWindow):
         if os.path.isfile(APP_ICON_PATH):
             self.setWindowIcon(QIcon(APP_ICON_PATH))
 
-        self._history = EditorHistory(self._open_history_location, self)
+        self._history = EditorHistory(
+            self._open_history_location, default_db_path(),
+            restore=get_global_prefs().get(RESTORE_PREF), parent=self)
         self.tabs = QTabWidget()
         self._history.message.connect(lambda msg: self.status_bar.showMessage(msg, 5000))
         # Named after Komodo's XUL id; koTabs opts into skin/qss.py's
@@ -511,13 +514,17 @@ class MainWindow(QMainWindow):
 
     def _close_other_tabs(self):
         current = self.tabs.currentWidget()
-        for i in reversed(range(self.tabs.count())):
-            if self.tabs.widget(i) is not current:
-                self._close_tab(i)
+        others = [self.tabs.widget(i) for i in range(self.tabs.count())
+                  if self.tabs.widget(i) is not current]
+        if self._offer_to_save(others):
+            for editor in others:
+                self._close_tab(self.tabs.indexOf(editor), offer_to_save=False)
 
     def _close_all_tabs(self):
-        for i in reversed(range(self.tabs.count())):
-            self._close_tab(i)
+        editors = [self.tabs.widget(i) for i in range(self.tabs.count())]
+        if self._offer_to_save(editors):
+            for editor in editors:
+                self._close_tab(self.tabs.indexOf(editor), offer_to_save=False)
 
     def _mru_icon(self, path):
         return file_icon(language_for_filename(path))
@@ -540,7 +547,7 @@ class MainWindow(QMainWindow):
         the file if it was closed."""
         for i in range(self.tabs.count()):
             editor = self.tabs.widget(i)
-            if editor is loc.key or (editor.filepath and editor.filepath == loc.key):
+            if editor is loc.key or (editor.filepath and os.path.abspath(editor.filepath) == loc.key):
                 self.tabs.setCurrentIndex(i)
                 return editor
         if isinstance(loc.key, str) and os.path.isfile(loc.key):
@@ -1539,6 +1546,9 @@ class MainWindow(QMainWindow):
         QWidget.setFocus(editor)
 
     def closeEvent(self, event):
+        if not self._offer_to_save([self.tabs.widget(i) for i in range(self.tabs.count())]):
+            event.ignore()
+            return
         self._save_workspace()
         for path in reversed(self._open_file_paths()):
             mru.add(get_global_prefs(), mru.FILE_LIST, os.path.abspath(path))
@@ -1548,6 +1558,7 @@ class MainWindow(QMainWindow):
             if sess.is_running():
                 sess.stop()
         self.codeintel.shutdown()
+        self._history.close()
         super().closeEvent(event)
 
     def _restore_session(self):
@@ -1692,35 +1703,39 @@ class MainWindow(QMainWindow):
 
     def save_current(self):
         editor = self.tabs.currentWidget()
-        if editor is None:
-            return
+        if editor is not None:
+            self._save_editor(editor)
+
+    def save_current_as(self):
+        editor = self.tabs.currentWidget()
+        if editor is not None:
+            self._save_editor_as(editor)
+
+    def _save_editor(self, editor):
+        """Returns whether the buffer got saved (False on cancel/error)."""
         item = editor.toolbox_item
         if item is not None:
             new_value = editor.current_text()
             toolbox_model.update_item(item.path, item.name, item.type, new_value, item.cwd)
             item.value = new_value
             editor.setSavePoint()
-            return
-        path = editor.filepath
-        if not path:
-            self.save_current_as()
-            return
-        self._write(editor, path)
+            return True
+        if not editor.filepath:
+            return self._save_editor_as(editor)
+        return self._write(editor, editor.filepath)
 
-    def save_current_as(self):
-        editor = self.tabs.currentWidget()
-        if editor is None:
-            return
+    def _save_editor_as(self, editor):
         path, _ = QFileDialog.getSaveFileName(self, "Save File As")
-        if path:
-            self._write(editor, path)
-            editor.filepath = path
-            editor.set_lexer_for_filename(path, editor.current_text())
-            editor.tab_title = os.path.basename(path)
-            self._update_tab_title(editor)
-            self.tabs.setTabToolTip(self.tabs.indexOf(editor), path)
-            self._update_tab_icon(editor)
-            self.status_bar.refresh()
+        if not path or not self._write(editor, path):
+            return False
+        editor.filepath = path
+        editor.set_lexer_for_filename(path, editor.current_text())
+        editor.tab_title = os.path.basename(path)
+        self._update_tab_title(editor)
+        self.tabs.setTabToolTip(self.tabs.indexOf(editor), path)
+        self._update_tab_icon(editor)
+        self.status_bar.refresh()
+        return True
 
     def _write(self, editor, path):
         try:
@@ -1728,13 +1743,49 @@ class MainWindow(QMainWindow):
                 f.write(editor.current_text())
         except OSError as exc:
             QMessageBox.warning(self, "Save File", f"Could not save {path}:\n{exc}")
-            return
+            return False
         editor.setSavePoint()
+        return True
 
-    def _close_tab(self, index):
+    def _offer_to_save_editor(self, editor):
+        """views-editor.p.xml close(): "Save changes to X?" for a dirty
+        buffer. Returns False if the close should be cancelled."""
+        if not editor.modify():
+            return True
+        self.tabs.setCurrentWidget(editor)
+        answer = QMessageBox.question(
+            self, "Komodo", f"Save changes to {editor.tab_title}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes)
+        if answer == QMessageBox.StandardButton.Cancel:
+            return False
+        if answer == QMessageBox.StandardButton.Yes:
+            return self._save_editor(editor)
+        return True
+
+    def _offer_to_save(self, editors):
+        """viewManager.offerToSave: one list of all dirty buffers, every
+        one selected, with Save / Do Not Save / Cancel. Returns False if
+        cancelled (or a save failed)."""
+        dirty = [e for e in editors if e.modify()]
+        if not dirty:
+            return True
+        dialog = SaveModifiedDialog([self._editor_display_path(e) for e in dirty], self)
+        selected = dialog.ask()
+        if selected is None:
+            return False
+        return all(self._save_editor(dirty[i]) for i in selected)
+
+    def _editor_display_path(self, editor):
+        return editor.filepath or editor.tab_title
+
+    def _close_tab(self, index, offer_to_save=True):
         if index < 0:
-            return
+            return False
         widget = self.tabs.widget(index)
+        if offer_to_save and not self._offer_to_save_editor(widget):
+            return False
         self._history.view_closing(widget)
         if widget.filepath:
             # views-editor.p.xml closeUnconditionally: files enter the MRU
@@ -1745,3 +1796,4 @@ class MainWindow(QMainWindow):
         widget.deleteLater()
         if self.tabs.count() == 0:
             self.new_file()
+        return True

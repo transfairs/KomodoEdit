@@ -24,6 +24,8 @@ DEFAULT_PREFS = {
     # src/prefs/prefs.p.xml
     "mruFileSize": 30,
     "mruProjectSize": 15,
+    # Prefs > Workspace "Restore Tab History"; off in Komodo too.
+    "workspace_restory_history": False,
 }
 
 

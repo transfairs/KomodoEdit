@@ -46,6 +46,14 @@ class PreferencesDialog(QDialog):
         form.addRow("Tab width", self._tab_width)
         form.addRow("Indent width", self._indent_width)
 
+        # pref-projects.xul's checkbox; takes effect on next start.
+        self._restore_history = QCheckBox("Restore Tab History")
+        self._restore_history.setChecked(bool(self._prefs.get("workspace_restory_history")))
+        self._restore_history.toggled.connect(
+            lambda checked: self._prefs.set("workspace_restory_history", checked)
+        )
+        form.addRow("", self._restore_history)
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.close)
         buttons.accepted.connect(self.close)
