@@ -10,6 +10,7 @@ which is fine for MVP-sized files but not incremental -- a known limitation
 to revisit once this grows beyond a spike.
 """
 import os
+import re
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QFontDatabase
@@ -169,6 +170,46 @@ TOKEN_STYLES = [
 ]
 
 
+# Scintilla's batch lexer (SCLEX_BATCH, LexBatch.cxx) as Komodo drives it:
+# koBATLanguage sets no keyword list, so only comments (REM, ::), labels,
+# drive changes (styled SCE_BAT_WORD) and operators stand out; commands,
+# %variables% and the "@" hide marker map to scheme styles Default.ksf
+# leaves at the default colour (src/schemes/styles.py 'Batch').
+BATCH_COMMENT_STYLE = 1  # comments
+BATCH_WORD_STYLE = 4  # keywords
+BATCH_LABEL_STYLE = 5  # functions
+BATCH_OPERATOR_STYLE = 7  # operators
+_BATCH_OPERATORS = set("=+><|?*&()")  # IsBOperator
+_BATCH_DRIVE_CHANGE = re.compile(r"[A-Za-z]:(?:\\)?(?=\s|$)")
+
+
+def batch_pieces(text):
+    """(text, style id) pieces for a batch file, line by line."""
+    for line in text.splitlines(True):
+        body = line.rstrip("\r\n")
+        eol = line[len(body):]
+        indent = len(body) - len(body.lstrip(" \t"))
+        rest = body[indent:]
+        yield body[:indent], STYLE_DEFAULT
+        if rest.startswith("::"):
+            yield rest, BATCH_COMMENT_STYLE
+        elif rest.startswith(":"):
+            yield rest, BATCH_LABEL_STYLE
+        elif _BATCH_DRIVE_CHANGE.match(rest):
+            yield rest, BATCH_WORD_STYLE
+        else:
+            if rest.startswith("@"):
+                yield "@", STYLE_DEFAULT  # SCE_BAT_HIDE
+                rest = rest[1:]
+            word = rest.lstrip(" \t")
+            if word[:3].lower() == "rem" and (len(word) == 3 or word[3] in " \t"):
+                yield rest, BATCH_COMMENT_STYLE
+            else:
+                for ch in rest:
+                    yield ch, BATCH_OPERATOR_STYLE if ch in _BATCH_OPERATORS else STYLE_DEFAULT
+        yield eol, STYLE_DEFAULT
+
+
 def _style_id_for(token_type):
     for token, style_id, _color in TOKEN_STYLES:
         if token_type in token:
@@ -194,9 +235,10 @@ def language_for_filename(filename):
     if udl_language and find_lexres_for_language(udl_language):
         return udl_language
     try:
-        return get_lexer_for_filename(filename).name
+        lexer = get_lexer_for_filename(filename)
     except ClassNotFound:
         return None
+    return editor_commands.komodo_language_name([lexer.name, *lexer.aliases]) or lexer.name
 
 
 def _editor_font():
@@ -381,7 +423,9 @@ class CodeEditor(ScintillaEdit):
         if self._udl_interpreter is not None:
             return self._udl_language
         if self._lexer is not None:
-            return self._lexer.name
+            # Komodo's name for it ("Batch" for Pygments' "Batchfile").
+            return editor_commands.komodo_language_name(
+                [self._lexer.name, *self._lexer.aliases]) or self._lexer.name
         return None
 
     def language_names(self):
@@ -451,6 +495,9 @@ class CodeEditor(ScintillaEdit):
                     (text[start:end], udl_styles.scintilla_style_id(style_num))
                     for start, end, style_num in udl_spans
                 )
+            elif self.language_name() == "Batch":
+                udl_spans = None
+                pieces = batch_pieces(text)
             else:
                 udl_spans = None
                 pieces = (

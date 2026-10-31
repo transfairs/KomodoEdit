@@ -328,6 +328,8 @@ class MainWindow(QMainWindow):
             "cmd_dedent": Command(self._editor_call("backTab")),
             "cmd_tabify": Command(lambda: self._on_editor(editor_commands.tabify, self._tab_width())()),
             "cmd_untabify": Command(lambda: self._on_editor(editor_commands.untabify, self._tab_width())()),
+            "cmd_editReflow": Command(lambda: self._on_editor(
+                editor_commands.reflow_paragraph, get_global_prefs().get("editAutoWrapColumn"))()),
             "cmd_join": Command(self._on_editor(editor_commands.join_lines)),
             "cmd_cleanLineEndings": Command(self._on_editor(editor_commands.clean_line_endings)),
             "cmd_removeTrailingWhitespace": Command(

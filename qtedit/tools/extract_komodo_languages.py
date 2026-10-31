@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Snapshot Komodo's per-language comment delimiters for qtedit.
+"""Snapshot Komodo's language names and comment delimiters for qtedit.
 
 Komodo defines `commentDelimiterInfo` as a class attribute on its language
 classes (src/languages, src/udl/skel, src/modules), inheriting it through
@@ -103,7 +103,8 @@ def main(argv):
         comment = resolve(classes, class_name, "comment")
         if comment:
             languages[info["name"]] = _jsonable(comment)
-    json.dump({"source": "Komodo 12.10 src/ commentDelimiterInfo", "comments": languages},
+    names = sorted({info["name"] for info in classes.values() if "name" in info})
+    json.dump({"source": "Komodo 12.10 src/ language classes", "names": names, "comments": languages},
               sys.stdout, indent=1, sort_keys=True)
     sys.stdout.write("\n")
 

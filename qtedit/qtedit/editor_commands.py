@@ -25,6 +25,8 @@ import re
 from PySide6.QtGui import QImage
 from pyside6_scintilla import Scintilla
 
+from qtedit import reflow
+
 SKIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skin", "komodo12")
 LANGUAGES_PATH = os.path.join(SKIN_DIR, "languages.json")
 BOOKMARK_XPM_PATH = os.path.join(SKIN_DIR, "bookmark.xpm")
@@ -37,20 +39,38 @@ FOLDLEVELBASE = 0x400
 FOLDLEVELNUMBERMASK = 0x0FFF
 FOLDLEVELHEADERFLAG = 0x2000
 
-_comment_info = None
+_languages = None
+
+
+def _language_data():
+    global _languages
+    if _languages is None:
+        with open(LANGUAGES_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        _languages = {
+            "names": {name.lower(): name for name in data["names"]},
+            "comments": {name.lower(): info for name, info in data["comments"].items()},
+        }
+    return _languages
+
+
+def komodo_language_name(names):
+    """Komodo's spelling of the first of `names` (a lexer's name, then its
+    aliases) that is a Komodo language: Batchfile/batch -> "Batch"."""
+    known = _language_data()["names"]
+    for name in names:
+        if name and name.lower() in known:
+            return known[name.lower()]
+    return None
 
 
 def comment_delimiters(names):
     """Komodo's commentDelimiterInfo for the first of `names` (language
     name, then lexer aliases) it knows, else None."""
-    global _comment_info
-    if _comment_info is None:
-        with open(LANGUAGES_PATH, encoding="utf-8") as f:
-            _comment_info = json.load(f)["comments"]
-        _comment_info.update({k.lower(): v for k, v in list(_comment_info.items())})
+    comments = _language_data()["comments"]
     for name in names:
-        if name and (name in _comment_info or name.lower() in _comment_info):
-            return _comment_info.get(name) or _comment_info[name.lower()]
+        if name and name.lower() in comments:
+            return comments[name.lower()]
     return None
 
 
@@ -437,6 +457,86 @@ def remove_trailing_whitespace(ed):
 def clean_line_endings(ed):
     """koDocument.cleanLineEndings: every EOL to the document's mode."""
     ed.convertEOLs(ed.eOLMode())
+
+
+# SCI_GETEOLMODE -> line terminator.
+_EOL_STRINGS = {0: "\r\n", 1: "\r", 2: "\n"}
+_WHITESPACE = "\t\n\x0b\x0c\r "  # not string.whitespace (Komodo bug 81316)
+
+
+def reflow_paragraph(ed, width):
+    """_do_cmd_editReflow: rewrap the selected lines, or with no selection
+    the caret line plus the following lines of the same paragraph (same
+    style, congruent indent; see reflow.Para.accept), to `width` columns.
+    The caret stays after the same number of non-whitespace characters.
+
+    Not ported: Komodo's block-comment detection for JavaScript/CSS/PHP,
+    which relies on SciMoz lexer style numbers."""
+    sel_start, sel_end = ed.selectionStart(), ed.selectionEnd()
+    start_line = ed.lineFromPosition(sel_start)
+    target_start = ed.positionFromLine(start_line)
+
+    def line_text(line):
+        return _text(ed, ed.positionFromLine(line), ed.lineEndPosition(line))
+
+    # A selection ending at the start of a blank line must not pull in
+    # the next paragraph.
+    stepped_back = (ed.column(sel_end) == 0 and sel_end != 0 and sel_end != sel_start
+                    and not line_text(ed.lineFromPosition(sel_end)).strip())
+    if stepped_back:
+        sel_end -= 1
+    end_line = ed.lineFromPosition(sel_end)
+    if sel_end != sel_start and ed.column(sel_end) == 0:
+        end_line -= 1
+
+    para = reflow.Para(reflow.Line(line_text(end_line)))
+    if sel_end == sel_start:
+        style = ed.styleAt(ed.lineEndPosition(end_line) - 1)
+        while end_line + 1 < ed.lineCount():
+            next_start = ed.positionFromLine(end_line + 1)
+            next_text = line_text(end_line + 1)
+            offsets = [next_start + _byte_len(next_text[:i]) for i, ch in enumerate(next_text)
+                       if ch not in " \t"]
+            if any(ed.styleAt(pos) != style for pos in offsets):
+                break
+            next_line = reflow.Line(next_text)
+            if not para.accept(next_line):
+                break
+            para.append(next_line)
+            end_line += 1
+
+    target_end = ed.lineEndPosition(end_line)
+    start = ed.positionFromLine(start_line)
+    end = min(ed.textLength(), target_end)
+    caret = ed.currentPos()
+    had_whitespace_to_left = (ed.anchor() <= caret and caret > 0
+                              and _text(ed, ed.positionBefore(caret), caret) in (" ", "\t"))
+    if end <= start:
+        return
+    text = _text(ed, start, end)
+    num_chars = len("".join(_text(ed, target_start, caret).split()))
+
+    tab_width = ed.tabWidth()
+    reflowed = reflow.reflow(text.expandtabs(tab_width), width, _EOL_STRINGS[ed.eOLMode()])
+    if ed.useTabs():
+        lines = reflowed.splitlines(True)
+        reflowed = "".join(_tabify_line(line, tab_width) if line else line for line in lines)
+    if _text(ed, target_start, target_end) == reflowed:
+        return
+    _replace(ed, target_start, target_end, reflowed)
+
+    skipped = i = 0
+    while skipped < num_chars and i < len(reflowed):
+        if reflowed[i] not in _WHITESPACE:
+            skipped += 1
+        i += 1
+    if had_whitespace_to_left:
+        i += 1
+    pos = min(ed.textLength(), target_start + _byte_len(reflowed[:i]))
+    if stepped_back:
+        pos = min(ed.textLength(), ed.positionFromLine(ed.lineFromPosition(pos) + 1))
+    ed.setEmptySelection(pos)
+    ed.setXOffset(0)
 
 
 # ---- navigation ---------------------------------------------------------

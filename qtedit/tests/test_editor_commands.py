@@ -158,3 +158,70 @@ class NavigationTestCase(EditorTestCase):
         self.assertEqual(self.editor.lineFromPosition(self.editor.currentPos()), 3)
         ec.jump_to_previous_fold(self.editor)
         self.assertEqual(self.editor.lineFromPosition(self.editor.currentPos()), 1)
+
+
+class ReflowTestCase(EditorTestCase):
+    TEXT = ("This is a long paragraph which is useful in testing reflow\n"
+            "and it continues here.\n"
+            "\n"
+            "Second paragraph stays.\n")
+
+    def setUp(self):
+        super().setUp()
+        self.editor.setUseTabs(False)
+        self.editor.setTabWidth(8)
+
+    def test_caret_reflows_its_paragraph_only(self):
+        self.set_text(self.TEXT)
+        self.editor.gotoPos(self.TEXT.index("useful"))
+        ec.reflow_paragraph(self.editor, 30)
+        self.assertEqual(self.text(), (
+            "This is a long paragraph which\nis useful in testing reflow\nand it continues here.\n"
+            "\nSecond paragraph stays.\n"))
+        # Same number of non-whitespace characters before the caret.
+        pos = self.editor.currentPos()
+        self.assertEqual(self.text()[pos:pos + 6], "useful")
+
+    def test_selection_ending_on_blank_line_stays_in_paragraph(self):
+        self.set_text(self.TEXT)
+        self.editor.setSel(0, self.TEXT.index("\n\n") + 1)
+        ec.reflow_paragraph(self.editor, 80)
+        self.assertEqual(self.text(), (
+            "This is a long paragraph which is useful in testing reflow and it continues\nhere.\n"
+            "\nSecond paragraph stays.\n"))
+
+    def test_comment_prefix_and_tabs(self):
+        self.set_text("\t# one two three four five six seven\n")
+        self.editor.setUseTabs(True)
+        self.editor.gotoPos(1)
+        ec.reflow_paragraph(self.editor, 25)
+        # The tab counts as 8 columns, so "four" no longer fits.
+        self.assertEqual(self.text(), "\t# one two three\n\t# four five six\n\t# seven\n")
+
+    def test_one_undo_step(self):
+        self.set_text(self.TEXT)
+        ec.reflow_paragraph(self.editor, 30)
+        self.editor.undo()
+        self.assertEqual(self.text(), self.TEXT)
+
+
+class KomodoLanguageTestCase(EditorTestCase):
+    def test_pygments_names_become_komodo_names(self):
+        self.assertEqual(ec.komodo_language_name(["Batchfile", "batch", "bat"]), "Batch")
+        self.assertEqual(ec.komodo_language_name(["INI", "ini", "cfg"]), "Ini")
+        self.assertIsNone(ec.komodo_language_name(["NotALanguage"]))
+        self.editor.set_lexer_for_filename("x.bat")
+        self.assertEqual(self.editor.language_name(), "Batch")
+
+    def test_batch_styles_like_komodo(self):
+        from qtedit.editor import BATCH_COMMENT_STYLE, BATCH_LABEL_STYLE, BATCH_OPERATOR_STYLE, \
+            BATCH_WORD_STYLE, batch_pieces
+        styled = [(text, style) for text, style in batch_pieces(
+            "@echo on\nREM x=1\nc:\n:label\n:: note\nset A=1\n") if text.strip()]
+        self.assertIn(("REM x=1", BATCH_COMMENT_STYLE), styled)
+        self.assertIn(("c:", BATCH_WORD_STYLE), styled)  # drive change
+        self.assertIn((":label", BATCH_LABEL_STYLE), styled)
+        self.assertIn((":: note", BATCH_COMMENT_STYLE), styled)
+        self.assertIn(("=", BATCH_OPERATOR_STYLE), styled)
+        # No keyword list in Komodo's Batch language: echo/set stay default.
+        self.assertNotIn(BATCH_WORD_STYLE, [s for t, s in styled if t in ("e", "s")])
