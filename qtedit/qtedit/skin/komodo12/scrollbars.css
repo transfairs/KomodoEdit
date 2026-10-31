@@ -1,0 +1,90 @@
+/* Yes these 2 are not colors, doesnt warrant a rename at this time */
+/* Main Window */
+/* Elements */
+/* Special Elements */
+/* Widgets */
+/* SCC */
+/* Misc */
+/* Scrollbars */
+page.widget[containerOrient="vertical"] scrollbar {
+  margin: 3px;
+  margin-left: -18px;
+}
+.autoscroll {
+  overflow: -moz-scrollbars-vertical;
+  overflow-y: scroll !important;
+}
+scrollcorner {
+  background: transparent !important;
+}
+scrollbar {
+  -moz-appearance: none !important;
+  border: 0;
+  background: transparent;
+  opacity: 1.0 !important;
+  margin: 1px;
+  z-index: 999;
+  position: relative;
+}
+scrollbar[orient="vertical"] {
+  min-width: 15px;
+}
+scrollbar[orient="horizontal"] {
+  min-height: 15px;
+}
+scrollbar slider {
+  -moz-appearance: none !important;
+  border: 0;
+}
+scrollbar thumb {
+  -moz-appearance: none !important;
+  background: #202024;
+  border: 0;
+}
+scrollbar scrollbarbutton {
+  display: none;
+}
+.native-scrollbars scrollbar {
+  -moz-appearance: scrollbar !important;
+  margin: inherit !important;
+  min-width: inherit !important;
+  min-height: inherit !important;
+}
+.native-scrollbars scrollbar slider {
+  -moz-appearance: scrollbartrack-horizontal !important;
+}
+.native-scrollbars scrollbar slider[orient="vertical"] {
+  -moz-appearance: scrollbartrack-vertical !important;
+}
+.native-scrollbars scrollbar thumb {
+  -moz-appearance: scrollbarthumb-horizontal !important;
+  background: inherit !important;
+}
+.native-scrollbars scrollbar thumb[orient="vertical"] {
+  -moz-appearance: scrollbarthumb-vertical !important;
+}
+/* Modals */
+dialog scrollbar thumb,
+:root.dialog scrollbar thumb,
+:root.pref-window scrollbar thumb,
+.widgetToolbarWrap scrollbar thumb {
+  background: #131316;
+}
+#commando-panel scrollbar {
+  margin-left: -16px;
+}
+:root.special scrollbar thumb {
+  background: #326ecd;
+}
+/* Scintilla */
+@media all and (-moz-overlay-scrollbars) {
+  scintilla[virtualScrollbars="true"] embed[anonid="scimoz"] {
+    margin-right: 16px;
+  }
+  scintilla[virtualScrollbars="true"][wrapped="false"] embed[anonid="scimoz"] {
+    margin-bottom: 16px;
+  }
+  scintilla[virtualScrollbars="true"][wrapped="true"] row > scrollbar[orient="horizontal"] {
+    visibility: collapse !important;
+  }
+}

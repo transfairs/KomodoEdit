@@ -15,6 +15,7 @@ from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
 from qtedit.main_window import APP_ICON_PATH, MainWindow
+from qtedit.skin import qss as skin
 
 # Only relevant for a direct venv launch (`python -m qtedit`) -- the packed
 # Snap doesn't need this, snapcraft generates a real .desktop entry from
@@ -64,6 +65,7 @@ def main():
     # MainWindow -- set both.
     if os.path.isfile(APP_ICON_PATH):
         app.setWindowIcon(QIcon(APP_ICON_PATH))
+    skin.apply(app)
     project_dir = sys.argv[1] if len(sys.argv) > 1 else None
     window = MainWindow(project_dir)
     window.show()

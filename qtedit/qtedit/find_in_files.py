@@ -197,6 +197,16 @@ def search_files(
             yield hit
 
 
+def search_text(path, text, pattern, *, case_sensitive=False, whole_word=False, use_regex=False):
+    """search_files() for one in-memory buffer, e.g. an open editor whose
+    unsaved text differs from the file on disk."""
+    if not pattern:
+        return
+    regex = _compile_pattern(pattern, case_sensitive, whole_word, use_regex)
+    for hit, _m in _hits_in_text(path, text, regex):
+        yield hit
+
+
 def search_dir(root_dir, recursive=True, include_glob="*", exclude_glob=""):
     """Path list for the classic "search a directory tree" scope."""
     return list(_iter_paths(root_dir, recursive, include_glob, exclude_glob))

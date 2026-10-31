@@ -1,11 +1,11 @@
 import os
 
 from PySide6.QtCore import QDir, QPoint, QProcess, QStandardPaths, Qt
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence
+from pyside6_scintilla import Scintilla
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
-    QDockWidget,
     QFileDialog,
     QFileSystemModel,
     QHBoxLayout,
@@ -16,7 +16,9 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QTabBar,
     QTabWidget,
+    QToolButton,
     QToolBar,
     QTreeView,
     QTreeWidget,
@@ -32,16 +34,21 @@ from qtedit.debugger import breakpoint_store
 from qtedit.debugger.breakpoint_dialog import BreakpointConditionDialog
 from qtedit.debugger.dbgp import DbgpSession
 from qtedit.debugger.session import DebugSession
-from qtedit.editor import UDL_LANGUAGES, CodeEditor
-from qtedit.find_bar import FindBar
+from qtedit.editor import LINE_NUMBER_MARGIN, UDL_LANGUAGES, CodeEditor
+from qtedit.find_bar import SEARCH_FILES, SEARCH_PROJECT, FindFrame
+from qtedit.incremental_search import IncrementalSearchBar
+from qtedit.menus import Command, MenuBuilder, add_window_shortcut, load_bindings
 from qtedit import find_in_files
-from qtedit.find_in_files_dialog import FindInFilesDialog
+from qtedit.prefs import get_global_prefs
 from qtedit.prefs_dialog import PreferencesDialog
 from qtedit.projects import model as project_model
 from qtedit.projects.tree_model import IS_FILE_ROLE, NODE_ROLE, build_project_model
 from qtedit import session
+from qtedit.skin.css import komodo_stylesheet
+from qtedit.statusbar import EditorStatusBar, file_icon
 from qtedit import vcs
 from qtedit.vcs_dock import VCSPanel
+from qtedit.workspace import TYPE_HORIZONTAL, TYPE_ICONS, KoPane, make_splitter
 from qtedit.toolbox import model as toolbox_model
 from qtedit.toolbox.item_dialog import ToolboxItemDialog
 from qtedit.toolbox.tree_model import (
@@ -56,6 +63,17 @@ KOMODO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__
 # artifacts" pattern used for the codeintel3/stdlibs/*.cix catalogs.
 APP_ICON_PATH = os.path.join(KOMODO_ROOT, "build", "release", "main", "komodo128.edit.png")
 
+# Persisted pane layout, like Komodo's ui.tabs.sidepanes.state pref plus
+# the xulstore widths. Defaults match a Komodo 12 classic-mode profile with
+# all panes and the toolbar row collapsed; sizes are komodo.p.xul's.
+WORKSPACE_PREF = "ui.workspace"
+WORKSPACE_DEFAULTS = {
+    "workspace_left_area": {"collapsed": True, "size": 200},
+    "workspace_right_area": {"collapsed": True, "size": 200},
+    "workspace_bottom_area": {"collapsed": True, "size": 200},
+    "toolbar": {"collapsed": True},
+}
+
 
 class MainWindow(QMainWindow):
     def __init__(self, project_dir=None):
@@ -66,27 +84,38 @@ class MainWindow(QMainWindow):
             self.setWindowIcon(QIcon(APP_ICON_PATH))
 
         self.tabs = QTabWidget()
-        self.tabs.setTabsClosable(True)
-        self.tabs.tabCloseRequested.connect(self._close_tab)
+        # Named after Komodo's XUL id; koTabs opts into skin/qss.py's
+        # Komodo tab rules (shared with the pane tab strips).
+        self.tabs.tabBar().setObjectName("tabbed-view")
+        self.tabs.tabBar().setProperty("koTabs", True)
+        self.tabs.setDocumentMode(True)
+        # Close buttons are Komodo's glyph buttons, see _add_editor_tab.
+        self.tabs.setTabsClosable(False)
         self.tabs.currentChanged.connect(self._on_current_tab_changed)
 
-        self._find_bar = FindBar(self)
+        self.status_bar = EditorStatusBar()
+        self.status_bar.open_requested.connect(self.open_file)
+        self.status_bar.language_menu_filler = self._fill_view_as_language_menu
+
+        self._isearch_bar = IncrementalSearchBar(self)
+        self._isearch_bar.closed.connect(self._return_focus_to_editor)
+        self._isearch_bar.open_dialog_requested.connect(self._isearch_to_find_frame)
+
+        self._find_bar = FindFrame(self)
         self._find_bar.hide()
         self._find_bar.closed.connect(self._return_focus_to_editor)
+        self._find_bar.message.connect(lambda msg: self.status_bar.showMessage(msg, 5000))
+        self._find_bar.hits_found.connect(self._on_find_in_files_hits)
+        self._find_bar.replacements_applied.connect(self._on_find_in_files_replaced)
+        self._find_bar.open_files_provider = self._open_file_paths
+        self._find_bar.project_dir_provider = (
+            lambda: self._project.base_dir if self._project is not None else None
+        )
+        self._find_bar.default_dir_provider = self._default_search_dir
 
-        central = QWidget()
-        central_layout = QVBoxLayout(central)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-        central_layout.addWidget(self.tabs)
-        central_layout.addWidget(self._find_bar)
-        self.setCentralWidget(central)
-
-        find_shortcut = QShortcut(QKeySequence.Find, self)
-        find_shortcut.activated.connect(self.open_find_bar)
+        self._build_workspace()
 
         self._prefs_dialog = None
-        self._find_in_files_dialog = None
         self._last_replace_undo = []
         self._running_processes = []
         self._build_menu()
@@ -96,78 +125,198 @@ class MainWindow(QMainWindow):
         self._build_vcs()
         self._build_debugger()
         self._build_codeintel()
+        self._restore_workspace()
 
         self.new_file()
 
+    def _build_workspace(self):
+        """komodo.p.xul's #komodo-hbox: left pane | editor column | right
+        pane, where the editor column is the editor (#komodo-editor-vbox-
+        inner: views, classic statusbar, find frame) over the bottom pane."""
+        self.left_pane = KoPane("workspace_left_area", TYPE_ICONS)
+        self.right_pane = KoPane("workspace_right_area", TYPE_ICONS)
+        self.bottom_pane = KoPane("workspace_bottom_area", TYPE_HORIZONTAL)
+        self._panes = {
+            pane.objectName(): pane for pane in (self.left_pane, self.right_pane, self.bottom_pane)
+        }
+
+        editor_box = QWidget()
+        editor_box.setObjectName("komodo-editor-vbox-inner")
+        editor_layout = QVBoxLayout(editor_box)
+        editor_layout.setContentsMargins(0, 0, 0, 0)
+        editor_layout.setSpacing(0)
+        editor_layout.addWidget(self.tabs, 1)
+        editor_layout.addWidget(self._isearch_bar)
+        editor_layout.addWidget(self.status_bar)
+        editor_layout.addWidget(self._find_bar)
+
+        self._editor_splitter = make_splitter(Qt.Orientation.Vertical, "bottom_splitter")
+        self._editor_splitter.addWidget(editor_box)
+        self._editor_splitter.addWidget(self.bottom_pane)
+        self._editor_splitter.setStretchFactor(0, 1)
+
+        self._workspace_splitter = make_splitter(Qt.Orientation.Horizontal, "komodo-hbox")
+        self._workspace_splitter.addWidget(self.left_pane)
+        self._workspace_splitter.addWidget(self._editor_splitter)
+        self._workspace_splitter.addWidget(self.right_pane)
+        self._workspace_splitter.setStretchFactor(1, 1)
+        self.setCentralWidget(self._workspace_splitter)
+
+    def _restore_workspace(self):
+        state = get_global_prefs().get(WORKSPACE_PREF) or {}
+        merged = {key: {**value, **state.get(key, {})} for key, value in WORKSPACE_DEFAULTS.items()}
+        for pane_id, pane in self._panes.items():
+            pane.setVisible(not merged[pane_id]["collapsed"])
+        left = merged["workspace_left_area"]["size"]
+        right = merged["workspace_right_area"]["size"]
+        bottom = merged["workspace_bottom_area"]["size"]
+        self._workspace_splitter.setSizes([left, max(100, self.width() - left - right), right])
+        self._editor_splitter.setSizes([max(100, self.height() - bottom), bottom])
+        self._toolbar.setVisible(not merged["toolbar"]["collapsed"])
+
+    def _save_workspace(self):
+        sizes = self._workspace_splitter.sizes()
+        state = {
+            "workspace_left_area": {"collapsed": not self.left_pane.isVisible(), "size": sizes[0]},
+            "workspace_right_area": {"collapsed": not self.right_pane.isVisible(), "size": sizes[2]},
+            "workspace_bottom_area": {
+                "collapsed": not self.bottom_pane.isVisible(),
+                "size": self._editor_splitter.sizes()[1],
+            },
+            "toolbar": {"collapsed": not self._toolbar.isVisible()},
+        }
+        # Collapsed panes report size 0; keep their last real size instead.
+        previous = get_global_prefs().get(WORKSPACE_PREF) or {}
+        for pane_id, entry in state.items():
+            if entry.get("size") == 0:
+                entry["size"] = previous.get(pane_id, WORKSPACE_DEFAULTS[pane_id]).get(
+                    "size", WORKSPACE_DEFAULTS[pane_id].get("size")
+                )
+        get_global_prefs().set(WORKSPACE_PREF, state)
+
+    def _open_file_paths(self):
+        return [
+            self.tabs.widget(i).filepath
+            for i in range(self.tabs.count())
+            if self.tabs.widget(i).filepath
+        ]
+
     def _build_menu(self):
-        file_menu = self.menuBar().addMenu("&File")
+        """Komodo's menubar (menus.py) wired to qtedit's implementations,
+        plus a Debug menu after View, where Komodo IDE has it."""
+        self._menu_builder = MenuBuilder(self, self._komodo_commands(), {
+            "menu_view_tabs": self._fill_tabs_and_sidebars_menu,
+            "menu_viewAsLanguage": self._fill_view_as_language_menu,
+        })
+        self._menu_builder.build(self.menuBar(), extra_menus=[("View", self._build_debug_menu())])
+        # Keybindings of commands that have no menu item.
+        bindings = load_bindings()
+        for command_id in ("cmd_findPrevious", "cmd_viewBottomPane", "cmd_focusEditor"):
+            add_window_shortcut(self, bindings[command_id], self._komodo_commands()[command_id].run)
+        self._build_toolbar()
 
-        self._new_action = QAction(icons.icon("file-plus2"), "&New", self)
-        self._new_action.setShortcut(QKeySequence.New)
-        self._new_action.triggered.connect(self.new_file)
-        file_menu.addAction(self._new_action)
+    def _editor_call(self, method_name, *args):
+        """Command body that forwards to the current editor."""
+        def run():
+            editor = self.tabs.currentWidget()
+            if editor is not None:
+                getattr(editor, method_name)(*args)
+        return run
 
-        self._open_action = QAction(icons.icon("folder-open"), "&Open...", self)
-        self._open_action.setShortcut(QKeySequence.Open)
-        self._open_action.triggered.connect(self.open_file_dialog)
-        file_menu.addAction(self._open_action)
+    def _komodo_commands(self):
+        if getattr(self, "_commands", None) is not None:
+            return self._commands
+        editor = self.tabs.currentWidget
+        has_project = lambda: self._project is not None  # noqa: E731
 
-        self._save_action = QAction(icons.icon("save"), "&Save", self)
-        self._save_action.setShortcut(QKeySequence.Save)
-        self._save_action.triggered.connect(self.save_current)
-        file_menu.addAction(self._save_action)
+        def view_toggle(getter, setter):
+            return Command(
+                run=lambda: editor() is not None and setter(editor(), not getter(editor())),
+                checked=lambda: editor() is not None and bool(getter(editor())),
+            )
 
-        save_as_action = QAction(icons.icon("save"), "Save &As...", self)
-        save_as_action.setShortcut(QKeySequence.SaveAs)
-        save_as_action.triggered.connect(self.save_current_as)
-        file_menu.addAction(save_as_action)
+        self._commands = {
+            # File
+            "cmd_new": Command(self.new_file),
+            "cmd_newTab": Command(self.new_file),
+            "cmd_open": Command(self.open_file_dialog),
+            "cmd_bufferClose": Command(lambda: self._close_tab(self.tabs.currentIndex())),
+            "cmd_bufferCloseOthers": Command(self._close_other_tabs),
+            "cmd_closeAll": Command(self._close_all_tabs),
+            "cmd_save": Command(self.save_current),
+            "cmd_saveAs": Command(self.save_current_as),
+            "cmd_saveAll": Command(self._save_all),
+            "cmd_quit": Command(self.close),
+            # Edit
+            "cmd_undo": Command(self._editor_call("undo")),
+            "cmd_redo": Command(self._editor_call("redo")),
+            "cmd_cut": Command(self._editor_call("cut")),
+            "cmd_copy": Command(self._editor_call("copy")),
+            "cmd_paste": Command(self._editor_call("paste")),
+            "cmd_selectAll": Command(self._editor_call("selectAll")),
+            "cmd_find": Command(self.open_find_bar),
+            "cmd_replace": Command(lambda: self.open_find_bar(replace=True)),
+            "cmd_findInFiles": Command(self.open_find_in_files),
+            "cmd_replaceInFiles": Command(lambda: self.open_find_bar(replace=True, search_in=SEARCH_FILES)),
+            "cmd_findInCurrProject": Command(
+                lambda: self.open_find_bar(search_in=SEARCH_PROJECT), enabled=has_project),
+            "cmd_replaceInCurrProject": Command(
+                lambda: self.open_find_bar(replace=True, search_in=SEARCH_PROJECT), enabled=has_project),
+            "cmd_findNext": Command(self._find_bar.find_next),
+            "cmd_findPrevious": Command(self._find_bar.find_previous),
+            "cmd_startIncrementalSearch": Command(self.start_incremental_search),
+            "cmd_editPrefs": Command(self.open_preferences),
+            # Code
+            "cmd_convertUpperCase": Command(self._editor_call("upperCase")),
+            "cmd_convertLowerCase": Command(self._editor_call("lowerCase")),
+            # Komodo's Ctrl+Space is word completion and Ctrl+J codeintel;
+            # qtedit has only codeintel completion, so both trigger it.
+            "cmd_completeWord": Command(self.trigger_autocomplete),
+            "cmd_triggerPrecedingCompletion": Command(self.trigger_autocomplete),
+            # Navigation
+            "cmd_gotoLine": Command(self._goto_line),
+            "cmd_jumpToMatchingBrace": Command(self._jump_to_matching_brace),
+            "cmd_editCenterVertically": Command(self._editor_call("verticalCentreCaret")),
+            "cmd_focusEditor": Command(self._return_focus_to_editor),
+            # View
+            "cmd_toggleToolbars": Command(
+                lambda: self._toolbar.setVisible(not self._toolbar.isVisible()),
+                checked=lambda: self._toolbar.isVisible()),
+            "cmd_toggleTabBar": Command(
+                lambda: self.tabs.tabBar().setVisible(not self.tabs.tabBar().isVisible()),
+                checked=lambda: self.tabs.tabBar().isVisible()),
+            "cmd_viewWhitespace": view_toggle(
+                lambda e: e.viewWS(), lambda e, on: e.setViewWS(1 if on else 0)),
+            "cmd_viewIndentationGuides": view_toggle(
+                lambda e: e.indentationGuides(), lambda e, on: e.setIndentationGuides(3 if on else 0)),
+            "cmd_viewLineNumbers": view_toggle(
+                lambda e: e.marginWidthN(LINE_NUMBER_MARGIN),
+                lambda e, on: e.set_line_numbers_visible(on)),
+            "cmd_viewEOL": view_toggle(lambda e: e.viewEOL(), lambda e, on: e.setViewEOL(on)),
+            "cmd_wordWrap": view_toggle(
+                lambda e: e.wrapMode(), lambda e, on: e.setWrapMode(1 if on else 0)),
+            "cmd_fontZoomIn": Command(self._editor_call("zoomIn")),
+            "cmd_fontZoomOut": Command(self._editor_call("zoomOut")),
+            "cmd_viewFullScreen": Command(
+                lambda: self.showNormal() if self.isFullScreen() else self.showFullScreen(),
+                checked=self.isFullScreen),
+            "cmd_foldExpandAll": Command(self._editor_call("foldAll", Scintilla.FoldAction.Expand)),
+            "cmd_foldCollapseAll": Command(self._editor_call("foldAll", Scintilla.FoldAction.Contract)),
+            "cmd_viewLeftPane": Command(self.left_pane.toggle),
+            "cmd_viewRightPane": Command(self.right_pane.toggle),
+            "cmd_viewBottomPane": Command(self.bottom_pane.toggle),
+            # Project
+            "cmd_openProject": Command(self.open_project),
+            "cmd_newProject": Command(self.new_project),
+            "cmd_closeProject": Command(self.close_project, enabled=has_project),
+            "cmd_closeAllProjects": Command(self.close_project, enabled=has_project),
+            # Help
+            "cmd_helpAbout": Command(self._about),
+        }
+        return self._commands
 
-        file_menu.addSeparator()
-
-        close_action = QAction(icons.icon("close"), "&Close Tab", self)
-        close_action.setShortcut(QKeySequence.Close)
-        close_action.triggered.connect(lambda: self._close_tab(self.tabs.currentIndex()))
-        file_menu.addAction(close_action)
-
-        file_menu.addSeparator()
-
-        new_project_action = QAction(icons.icon("archive"), "New &Project...", self)
-        new_project_action.triggered.connect(self.new_project)
-        file_menu.addAction(new_project_action)
-
-        open_project_action = QAction(icons.icon("folder2"), "Open P&roject...", self)
-        open_project_action.triggered.connect(self.open_project)
-        file_menu.addAction(open_project_action)
-
-        self._close_project_action = QAction(icons.icon("close"), "Close Project", self)
-        self._close_project_action.setEnabled(False)
-        self._close_project_action.triggered.connect(self.close_project)
-        file_menu.addAction(self._close_project_action)
-
-        edit_menu = self.menuBar().addMenu("&Edit")
-
-        self._find_in_files_action = QAction(icons.icon("search"), "Find in &Files...", self)
-        self._find_in_files_action.setShortcut(QKeySequence("Ctrl+Shift+F"))
-        self._find_in_files_action.triggered.connect(self.open_find_in_files)
-        edit_menu.addAction(self._find_in_files_action)
-
-        self._undo_replace_action = QAction("&Undo Last Replace All", self)
-        self._undo_replace_action.setEnabled(False)
-        self._undo_replace_action.triggered.connect(self.undo_last_find_replace)
-        edit_menu.addAction(self._undo_replace_action)
-
-        set_language_action = QAction("Set &Language...", self)
-        set_language_action.triggered.connect(self.open_set_language)
-        edit_menu.addAction(set_language_action)
-
-        edit_menu.addSeparator()
-
-        prefs_action = QAction(icons.icon("cog"), "&Preferences...", self)
-        prefs_action.setShortcut(QKeySequence.Preferences)
-        prefs_action.triggered.connect(self.open_preferences)
-        edit_menu.addAction(prefs_action)
-
-        debug_menu = self.menuBar().addMenu("&Debug")
+    def _build_debug_menu(self):
+        debug_menu = QMenu("&Debug", self)
 
         self._start_debug_action = QAction("&Start Debugging", self)
         self._start_debug_action.setShortcut(QKeySequence("F5"))
@@ -214,18 +363,113 @@ class MainWindow(QMainWindow):
         self._stop_debug_action.setEnabled(False)
         self._stop_debug_action.triggered.connect(self._debug_stop)
         debug_menu.addAction(self._stop_debug_action)
-
-        self._build_toolbar()
+        return debug_menu
 
     def _build_toolbar(self):
+        """#main-toolboxrow: Komodo's standard toolbar buttons and the
+        workspace pane toggles, each with the glyph its CSS class or id
+        gets in the skin."""
         toolbar = QToolBar("Main", self)
-        toolbar.setObjectName("mainToolBar")
-        toolbar.addAction(self._new_action)
-        toolbar.addAction(self._open_action)
-        toolbar.addAction(self._save_action)
-        toolbar.addSeparator()
-        toolbar.addAction(self._find_in_files_action)
+        toolbar.setObjectName("main-toolboxrow")
+        toolbar.setMovable(False)
+        self._toolbar = toolbar
+        css = komodo_stylesheet()
+        for command_id, selector, tooltip in (
+            ("cmd_undo", ".native-undo-icon:before", "Undo"),
+            ("cmd_redo", ".native-redo-icon:before", "Redo"),
+            (None, None, None),
+            ("cmd_new", ".native-new-file-icon:before", "New File"),
+            ("cmd_open", ".native_open_icon:before", "Open File"),
+            ("cmd_save", ".native-save-icon:before", "Save File"),
+            (None, None, None),
+            ("cmd_viewLeftPane", "#toggleLeftPane:before", "Show/Hide Left Pane"),
+            ("cmd_viewBottomPane", "#toggleBottomPane:before", "Show/Hide Bottom Pane"),
+            ("cmd_viewRightPane", "#toggleRightPane:before", "Show/Hide Right Pane"),
+        ):
+            if command_id is None:
+                toolbar.addSeparator()
+                continue
+            action = QAction(icons.glyph(icons.css_glyph(css.value(selector, "content"))), tooltip, self)
+            action.triggered.connect(lambda _c=False, c=command_id: self._commands[c].run())
+            toolbar.addAction(action)
         self.addToolBar(toolbar)
+
+    def _fill_tabs_and_sidebars_menu(self, menu):
+        """ko.widgets.updateMenu: each pane's widgets in tab order,
+        separated by pane; picking one shows it."""
+        for pane in (self.left_pane, self.right_pane, self.bottom_pane):
+            for widget_id, label in pane.visible_widgets():
+                action = menu.addAction(label)
+                action.triggered.connect(
+                    lambda _c=False, p=pane, w=widget_id: p.show_widget(w))
+            menu.addSeparator()
+        actions = menu.actions()
+        if actions and actions[-1].isSeparator():
+            menu.removeAction(actions[-1])
+
+    def _fill_view_as_language_menu(self, menu):
+        editor = self.tabs.currentWidget()
+        current = editor.language_name() if editor is not None else None
+        for name in UDL_LANGUAGES:
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(name == current)
+            action.triggered.connect(lambda _c=False, n=name: self._set_language(n))
+
+    def _set_language(self, name):
+        editor = self.tabs.currentWidget()
+        if editor is None:
+            return
+        editor.set_lexer_by_name(name)
+        self._update_tab_icon(editor)
+        self.status_bar.refresh()
+
+    def _close_other_tabs(self):
+        current = self.tabs.currentWidget()
+        for i in reversed(range(self.tabs.count())):
+            if self.tabs.widget(i) is not current:
+                self._close_tab(i)
+
+    def _close_all_tabs(self):
+        for i in reversed(range(self.tabs.count())):
+            self._close_tab(i)
+
+    def _save_all(self):
+        current = self.tabs.currentIndex()
+        for i in range(self.tabs.count()):
+            editor = self.tabs.widget(i)
+            if editor.filepath or editor.toolbox_item is not None:
+                self.tabs.setCurrentIndex(i)
+                self.save_current()
+        self.tabs.setCurrentIndex(current)
+
+    def _goto_line(self):
+        editor = self.tabs.currentWidget()
+        if editor is None:
+            return
+        line, ok = QInputDialog.getInt(
+            self, "Go to Line", "Line:", editor.lineFromPosition(editor.currentPos()) + 1,
+            1, max(1, editor.lineCount()))
+        if ok:
+            editor.gotoLine(line - 1)
+            editor.verticalCentreCaret()
+
+    def _jump_to_matching_brace(self):
+        editor = self.tabs.currentWidget()
+        if editor is None:
+            return
+        pos = editor.currentPos()
+        match = editor.braceMatch(pos, 0)
+        if match < 0 and pos > 0:
+            match = editor.braceMatch(pos - 1, 0)
+        if match >= 0:
+            editor.gotoPos(match)
+
+    def _about(self):
+        QMessageBox.about(
+            self, "About Komodo",
+            "KomodoEdit (Qt)\n\nA Qt/PySide6 rewrite of the Komodo Edit 12 user interface.",
+        )
 
     def open_preferences(self):
         if self._prefs_dialog is None:
@@ -234,27 +478,23 @@ class MainWindow(QMainWindow):
         self._prefs_dialog.raise_()
         self._prefs_dialog.activateWindow()
 
-    def open_set_language(self):
-        """Manually pick a UDL language for the current tab -- the only way
-        to reach the handful of UDL languages (Django, AngularJS, TracWiki,
-        JSERB, Komodo_Snippet) that have no safe, unambiguous file
-        extension of their own (see UDL_EXTENSIONS' docstring in
-        editor.py), and a convenience override for everything else too."""
-        editor = self.tabs.currentWidget()
-        if editor is None:
-            return
-        name, ok = QInputDialog.getItem(
-            self, "Set Language", "Language:", UDL_LANGUAGES, 0, False
-        )
-        if ok and name:
-            editor.set_lexer_by_name(name)
-
     def _on_current_tab_changed(self, _index):
         self._find_bar.set_editor(self.tabs.currentWidget())
+        self._isearch_bar.set_editor(self.tabs.currentWidget())
+        self.status_bar.set_editor(self.tabs.currentWidget())
 
-    def open_find_bar(self):
+    def start_incremental_search(self):
+        self._isearch_bar.start(self.tabs.currentWidget())
+
+    def _isearch_to_find_frame(self, pattern):
+        """findController.convertToDialog(): carry the pattern over."""
+        self._isearch_bar.close_bar()
+        self.open_find_bar()
+        self._find_bar.set_pattern(pattern)
+
+    def open_find_bar(self, replace=False, search_in=None):
         self._find_bar.set_editor(self.tabs.currentWidget())
-        self._find_bar.show_bar()
+        self._find_bar.show_bar(replace=replace, search_in=search_in)
 
     def _return_focus_to_editor(self):
         editor = self.tabs.currentWidget()
@@ -274,51 +514,57 @@ class MainWindow(QMainWindow):
         self._results_view.setHeaderLabels(["File", "Line", "Text"])
         self._results_view.itemDoubleClicked.connect(self._on_find_result_double_clicked)
 
+        # Komodo's find results tab carries the undo for a Replace All.
+        self._undo_replace_btn = QPushButton("Undo Replacements")
+        self._undo_replace_btn.setEnabled(False)
+        self._undo_replace_btn.clicked.connect(self.undo_last_find_replace)
+        results_bar = QHBoxLayout()
+        results_bar.addWidget(self._results_filter_edit, 1)
+        results_bar.addWidget(self._undo_replace_btn)
+
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._results_filter_edit)
+        layout.addLayout(results_bar)
         layout.addWidget(self._results_view)
 
-        dock = QDockWidget("Find Results", self)
-        dock.setWidget(container)
-        self.addDockWidget(Qt.BottomDockWidgetArea, dock)
+        # Komodo registers find results as "findresults_tabpanel<N>" in the
+        # bottom pane, shown only once there are results.
+        self.bottom_pane.add_widget(
+            "findresults_tabpanel", "Find Results", container, "search", visible=False
+        )
 
     def _build_vcs(self):
+        # Source control isn't part of Komodo Edit; Komodo IDE shows it as
+        # a side-pane widget, so it lives in the left pane here.
         self._vcs_panel = None
-        self._vcs_dock = QDockWidget("Git", self)
-        self._vcs_dock.setVisible(False)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self._vcs_dock)
+        self.left_pane.add_widget("scc-widget", "Git", QWidget(), "code-fork", visible=False)
 
         self._diff_view = QPlainTextEdit()
         self._diff_view.setReadOnly(True)
         font = self._diff_view.font()
         font.setFamily("monospace")
         self._diff_view.setFont(font)
-        self._diff_dock = QDockWidget("Diff", self)
-        self._diff_dock.setWidget(self._diff_view)
-        self._diff_dock.setVisible(False)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self._diff_dock)
+        self.bottom_pane.add_widget("diff-widget", "Diff", self._diff_view, "code", visible=False)
 
     def _refresh_vcs(self):
         if self._project is not None and vcs.is_git_repo(self._project.base_dir):
             if self._vcs_panel is None or self._vcs_panel.base_dir != self._project.base_dir:
                 self._vcs_panel = VCSPanel(self._project.base_dir, self)
                 self._vcs_panel.diff_requested.connect(self._show_diff)
-                self._vcs_dock.setWidget(self._vcs_panel)
+                self.left_pane.set_widget("scc-widget", self._vcs_panel)
             else:
                 self._vcs_panel.refresh()
-            self._vcs_dock.setVisible(True)
+            self.left_pane.set_widget_visible("scc-widget", True)
         else:
-            self._vcs_dock.setVisible(False)
-            self._diff_dock.setVisible(False)
+            self.left_pane.set_widget_visible("scc-widget", False)
+            self.bottom_pane.set_widget_visible("diff-widget", False)
 
     def _show_diff(self, path, staged):
         diff_text = vcs.git_diff(self._project.base_dir, path, staged=staged)
         self._diff_view.setPlainText(diff_text or "(no changes)")
-        self._diff_dock.setWindowTitle(f"Diff: {path}")
-        self._diff_dock.setVisible(True)
-        self._diff_dock.raise_()
+        self.bottom_pane.set_label("diff-widget", f"Diff: {path}")
+        self.bottom_pane.show_widget("diff-widget")
 
     def _build_debugger(self):
         # Multiple simultaneous debug sessions: keyed by script path, since
@@ -367,10 +613,9 @@ class MainWindow(QMainWindow):
         layout.addLayout(watch_add_row)
         layout.addWidget(self._watch_view, 1)
 
-        self._debug_dock = QDockWidget("Debug", self)
-        self._debug_dock.setWidget(panel)
-        self._debug_dock.setVisible(False)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self._debug_dock)
+        # Komodo IDE's debug session widget ("debugsession<N>") sits in the
+        # bottom pane, using the breakpoints widget's glyph here.
+        self.bottom_pane.add_widget("breakpoints-tabpanel", "Debug", panel, "bug", visible=False)
 
     def toggle_breakpoint(self):
         editor = self.tabs.currentWidget()
@@ -415,14 +660,14 @@ class MainWindow(QMainWindow):
             elif path.endswith(".php"):
                 session_cls = DbgpSession
         if session_cls is None:
-            self.statusBar().showMessage(
+            self.status_bar.showMessage(
                 "Start Debugging benötigt eine gespeicherte .py- oder .php-Datei im aktiven Tab",
                 4000,
             )
             return
         existing = self._debug_sessions.get(path)
         if existing is not None and existing.is_running():
-            self.statusBar().showMessage("Für diese Datei läuft bereits eine Debug-Sitzung", 3000)
+            self.status_bar.showMessage("Für diese Datei läuft bereits eine Debug-Sitzung", 3000)
             return
 
         sess = session_cls(self)
@@ -450,7 +695,7 @@ class MainWindow(QMainWindow):
         sess.start(path, breakpoints)
 
         self._set_debug_actions_running(True)
-        self._debug_dock.setVisible(True)
+        self.bottom_pane.show_widget("breakpoints-tabpanel")
 
     def _connect_session_signals(self, path, sess):
         # Every handler below is path-tagged (via the `p=path` default-arg
@@ -589,7 +834,7 @@ class MainWindow(QMainWindow):
     def _on_debug_local_error(self, path, message):
         if path != self._active_debug_path:
             return
-        self.statusBar().showMessage(message, 5000)
+        self.status_bar.showMessage(message, 5000)
 
     def _on_add_watch(self):
         expr = self._watch_add_edit.text().strip()
@@ -652,7 +897,7 @@ class MainWindow(QMainWindow):
             # active, nothing else needs to happen here.
             self._debug_session_combo.removeItem(idx)
         self._set_debug_actions_running(bool(self._debug_sessions))
-        self.statusBar().showMessage(
+        self.status_bar.showMessage(
             f"{os.path.basename(path)}: Debuggee exited with code {exit_code}", 5000
         )
 
@@ -662,32 +907,12 @@ class MainWindow(QMainWindow):
         return self._project_root_path
 
     def open_find_in_files(self):
-        # Recreated every time rather than cached: the open-files list and
-        # project scope can change between invocations (tabs opened/closed,
-        # project opened/closed), and this dialog is cheap to build.
-        open_files = [
-            self.tabs.widget(i).filepath
-            for i in range(self.tabs.count())
-            if self.tabs.widget(i).filepath
-        ]
-        project_base_dir = self._project.base_dir if self._project is not None else None
-        self._find_in_files_dialog = FindInFilesDialog(
-            self._default_search_dir(),
-            self,
-            open_files=open_files,
-            project_base_dir=project_base_dir,
-        )
-        self._find_in_files_dialog.hits_found.connect(self._on_find_in_files_hits)
-        self._find_in_files_dialog.replacements_applied.connect(
-            self._on_find_in_files_replaced
-        )
-        self._find_in_files_dialog.show()
-        self._find_in_files_dialog.raise_()
-        self._find_in_files_dialog.activateWindow()
+        """cmd_findInFiles: the find frame in "Files" mode."""
+        self.open_find_bar(search_in=SEARCH_FILES)
 
     def _on_find_in_files_replaced(self, undo_record):
         self._last_replace_undo = undo_record
-        self._undo_replace_action.setEnabled(bool(undo_record))
+        self._undo_replace_btn.setEnabled(bool(undo_record))
 
     def undo_last_find_replace(self):
         if not self._last_replace_undo:
@@ -704,16 +929,17 @@ class MainWindow(QMainWindow):
                         editor.setText(f.read())
                 except OSError:
                     continue
-        self.statusBar().showMessage(
+        self.status_bar.showMessage(
             f"Reverted {len(self._last_replace_undo)} file(s)", 4000
         )
         self._last_replace_undo = []
-        self._undo_replace_action.setEnabled(False)
+        self._undo_replace_btn.setEnabled(False)
 
     def _on_find_in_files_hits(self, hits):
         self._all_find_hits = hits
         self._results_filter_edit.clear()  # also triggers _apply_find_results_filter
-        self.statusBar().showMessage(f"{len(hits)} match(es) found", 5000)
+        self.bottom_pane.show_widget("findresults_tabpanel")
+        self.status_bar.showMessage(f"{len(hits)} match(es) found", 5000)
 
     def _apply_find_results_filter(self, text):
         self._results_view.clear()
@@ -750,6 +976,7 @@ class MainWindow(QMainWindow):
         self._project_root_path = root_path
         self._fs_model = None
         self._project_tree = QTreeView()
+        self._project_tree.setHeaderHidden(True)
         self._project_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._project_tree.customContextMenuRequested.connect(
             self._show_project_context_menu
@@ -760,9 +987,8 @@ class MainWindow(QMainWindow):
         # browser and project-tree mode.
         self._project_tree.doubleClicked.connect(self._on_tree_double_clicked)
 
-        self._project_dock = QDockWidget("Project", self)
-        self._project_dock.setWidget(self._project_tree)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self._project_dock)
+        # Komodo's Places widget (modules/places), first in the left pane.
+        self.left_pane.add_widget("placesViewbox", "Places", self._project_tree)
 
         self._show_folder_browser(root_path)
 
@@ -777,12 +1003,12 @@ class MainWindow(QMainWindow):
         self._project_tree.setRootIndex(self._fs_model.index(root_path))
         for column in (1, 2, 3):
             self._project_tree.hideColumn(column)
-        self._project_dock.setWindowTitle("Project")
+        self.left_pane.set_label("placesViewbox", "Places")
 
     def _show_project_tree(self):
         self._fs_model = None
         self._project_tree.setModel(build_project_model(self._project, self._git_status_map()))
-        self._project_dock.setWindowTitle(f"Project: {self._project.name}")
+        self.left_pane.set_label("placesViewbox", f"Places: {self._project.name}")
 
     def _git_status_map(self):
         if self._project is None or not vcs.is_git_repo(self._project.base_dir):
@@ -811,7 +1037,6 @@ class MainWindow(QMainWindow):
             path += project_model.PROJECT_EXTENSION
         name = os.path.splitext(os.path.basename(path))[0]
         self._project = project_model.create_project(path, name)
-        self._close_project_action.setEnabled(True)
         self._show_project_tree()
         self._refresh_toolbox()
         self._refresh_vcs()
@@ -828,7 +1053,6 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.warning(self, "Open Project", f"Could not open {path}:\n{exc}")
             return
-        self._close_project_action.setEnabled(True)
         self._show_project_tree()
         self._refresh_toolbox()
         self._refresh_vcs()
@@ -839,7 +1063,6 @@ class MainWindow(QMainWindow):
             return
         self._save_session()
         self._project = None
-        self._close_project_action.setEnabled(False)
         self._show_folder_browser(self._project_root_path)
         self._refresh_toolbox()
         self._refresh_vcs()
@@ -919,15 +1142,11 @@ class MainWindow(QMainWindow):
         self._toolbox_view.doubleClicked.connect(self._on_toolbox_double_clicked)
         self._refresh_toolbox()
 
-        dock = QDockWidget("Toolbox", self)
-        dock.setWidget(self._toolbox_view)
-        self.addDockWidget(Qt.LeftDockWidgetArea, dock)
+        self.right_pane.add_widget("toolbox2viewbox", "Toolbox", self._toolbox_view)
 
         self._output_view = QPlainTextEdit()
         self._output_view.setReadOnly(True)
-        output_dock = QDockWidget("Output", self)
-        output_dock.setWidget(self._output_view)
-        self.addDockWidget(Qt.BottomDockWidgetArea, output_dock)
+        self.bottom_pane.add_widget("runoutput-desc-tabpanel", "Command Output", self._output_view)
 
     def _refresh_toolbox(self):
         project_toolbox_root = None
@@ -1058,7 +1277,7 @@ class MainWindow(QMainWindow):
         editor = CodeEditor(self)
         editor.setText(item.value)
         editor.toolbox_item = item
-        index = self.tabs.addTab(editor, f"Snippet: {item.name}")
+        index = self._add_editor_tab(editor, f"Snippet: {item.name}")
         self.tabs.setTabToolTip(index, item.path)
         self.tabs.setCurrentIndex(index)
 
@@ -1088,15 +1307,13 @@ class MainWindow(QMainWindow):
         # Scoped to saved Python files only for this MVP.
         self.codeintel = CodeIntelClient(parent=self)
         self.codeintel.errorOccurred.connect(
-            lambda msg: self.statusBar().showMessage(msg, 5000)
+            lambda msg: self.status_bar.showMessage(msg, 5000)
         )
         self.completion_popup = CompletionPopup(self)
         self.completion_popup.accepted.connect(self._insert_completion)
         self._pending_editor = None
         self._pending_pos = None
 
-        shortcut = QShortcut(QKeySequence("Ctrl+Space"), self)
-        shortcut.activated.connect(self.trigger_autocomplete)
 
     def trigger_autocomplete(self):
         editor = self.tabs.currentWidget()
@@ -1104,7 +1321,7 @@ class MainWindow(QMainWindow):
             return
         path = editor.filepath
         if not path:
-            self.statusBar().showMessage(
+            self.status_bar.showMessage(
                 "Autocomplete nur für gespeicherte Python-Dateien (Datei erst speichern)",
                 4000,
             )
@@ -1118,7 +1335,7 @@ class MainWindow(QMainWindow):
         # it doesn't look stuck, and snapshot the edit generation so a
         # response that arrives after further edits gets dropped instead of
         # being applied at a now-wrong position (see _on_eval).
-        self.statusBar().showMessage("Suche Vervollständigungen…")
+        self.status_bar.showMessage("Suche Vervollständigungen…")
         generation = editor.edit_generation
         self.codeintel.scan_document(
             path, text, "Python",
@@ -1130,8 +1347,8 @@ class MainWindow(QMainWindow):
         # stale (the buffer changed since it was triggered). Only clears
         # the "Suche Vervollständigungen…" placeholder, not some unrelated
         # message that may have shown up in the meantime.
-        if self.statusBar().currentMessage() == "Suche Vervollständigungen…":
-            self.statusBar().clearMessage()
+        if self.status_bar.currentMessage() == "Suche Vervollständigungen…":
+            self.status_bar.clearMessage()
 
     def _on_scanned(self, editor, path, pos, generation):
         if editor.edit_generation != generation:
@@ -1147,7 +1364,7 @@ class MainWindow(QMainWindow):
             return
         trg = resp.get("trg")
         if not trg:
-            self.statusBar().showMessage("Keine Vervollständigung an dieser Position", 3000)
+            self.status_bar.showMessage("Keine Vervollständigung an dieser Position", 3000)
             return
         self.codeintel.eval_trigger(trg, lambda resp: self._on_eval(editor, pos, resp, generation))
 
@@ -1162,11 +1379,11 @@ class MainWindow(QMainWindow):
             return
         cplns = resp.get("cplns")
         if not cplns:
-            self.statusBar().showMessage(
+            self.status_bar.showMessage(
                 resp.get("message", "Keine Vervollständigungen gefunden"), 3000
             )
             return
-        self.statusBar().clearMessage()
+        self.status_bar.clearMessage()
         self._pending_editor = editor
         self._pending_pos = pos
         x = editor.pointXFromPosition(pos)
@@ -1191,6 +1408,7 @@ class MainWindow(QMainWindow):
         QWidget.setFocus(editor)
 
     def closeEvent(self, event):
+        self._save_workspace()
         if self._project is not None:
             self._save_session()
         for sess in list(self._debug_sessions.values()):
@@ -1236,10 +1454,31 @@ class MainWindow(QMainWindow):
         if os.path.isfile(path):
             self.open_file(path)
 
+    def _add_editor_tab(self, editor, title):
+        """A file tab as scrolltabs.xml#file-status-tab draws it: the
+        language's file icon, the name, and a `.tab-close-button` glyph."""
+        index = self.tabs.addTab(editor, title)
+        self._update_tab_icon(editor)
+        css = komodo_stylesheet()
+        close = QToolButton()
+        close.setObjectName("tab-close-button")
+        close.setIcon(icons.glyph(
+            icons.css_glyph(css.value(".tab-close-button:before", "content")),
+            int(css.value(".tab-close-button", "font-size", "16px").rstrip("px")),
+            QColor(css.value(".tab-close-button:before", "color")),
+        ))
+        close.setToolTip("Close")
+        close.clicked.connect(lambda _c=False, e=editor: self._close_tab(self.tabs.indexOf(e)))
+        self.tabs.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, close)
+        return index
+
+    def _update_tab_icon(self, editor):
+        self.tabs.setTabIcon(self.tabs.indexOf(editor), file_icon(editor.language_name()))
+
     def new_file(self):
         editor = CodeEditor(self)
         editor.set_lexer_by_name("python")
-        index = self.tabs.addTab(editor, "untitled")
+        index = self._add_editor_tab(editor, "untitled")
         self.tabs.setCurrentIndex(index)
         editor.filepath = None
 
@@ -1270,7 +1509,7 @@ class MainWindow(QMainWindow):
         editor.restore_breakpoints(breakpoint_store.load_breakpoints(self._breakpoints_path, abspath))
         editor.breakpointsChanged.connect(lambda ed=editor: self._save_breakpoints_for(ed))
 
-        index = self.tabs.addTab(editor, os.path.basename(path))
+        index = self._add_editor_tab(editor, os.path.basename(path))
         self.tabs.setTabToolTip(index, path)
         self.tabs.setCurrentIndex(index)
 
@@ -1301,6 +1540,8 @@ class MainWindow(QMainWindow):
             editor.set_lexer_for_filename(path, editor.current_text())
             self.tabs.setTabText(self.tabs.indexOf(editor), os.path.basename(path))
             self.tabs.setTabToolTip(self.tabs.indexOf(editor), path)
+            self._update_tab_icon(editor)
+            self.status_bar.refresh()
 
     def _write(self, editor, path):
         try:

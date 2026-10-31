@@ -1,0 +1,99 @@
+/* Yes these 2 are not colors, doesnt warrant a rename at this time */
+/* Main Window */
+/* Elements */
+/* Special Elements */
+/* Widgets */
+/* SCC */
+/* Misc */
+[anonid="breadcrumbBar"] {
+  -moz-appearance: none;
+  background: transparent;
+  margin: 0 0 0 4px;
+  padding: 0;
+  border: 0;
+}
+[anonid="breadcrumbBar"] .breadcrumb {
+  -moz-binding: url("chrome://breadcrumbs/content/bindings/toolbarbutton.xml#toolbarbutton");
+  position: relative;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+[anonid="breadcrumbBar"] .breadcrumb.folder .breadcrumb-icon {
+  margin-right: 2px;
+}
+[anonid="breadcrumbBar"] .breadcrumb.folder .breadcrumb-icon {
+  background: url("koicon://ko-svg/chrome/komodo/skin/images/folder_closed.svg?size=14&scheme-name=interface&scheme-color=icons");
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+  width: 14px;
+  height: 14px;
+  margin-top: -2px;
+  opacity: 0.6;
+}
+[anonid="breadcrumbBar"] .breadcrumb.folder .toolbarbutton-icon {
+  visibility: collapse;
+}
+[anonid="breadcrumbBar"] .breadcrumb:empty {
+  visibility: visible;
+}
+[anonid="breadcrumbBar"] .breadcrumb.overflown {
+  visibility: collapse;
+}
+[anonid="breadcrumbBar"] .breadcrumb.first-child {
+  margin-left: 6px !important;
+}
+[anonid="breadcrumbBar"] .breadcrumb .toolbarbutton-text {
+  padding: 2px;
+  border-radius: 2px;
+}
+[anonid="breadcrumbBar"] .breadcrumb:hover .toolbarbutton-text {
+  background: #131316;
+  color: #ffffff;
+}
+[anonid="breadcrumbBar"] .breadcrumb .toolbarbutton-icon {
+  margin-right: 4px !important;
+}
+[anonid="breadcrumbBar"] .breadcrumb .breadcrumb-arrow {
+  margin: 0 2px 0 2px;
+}
+[anonid="breadcrumbBar"] .breadcrumb .breadcrumb-arrow,
+[anonid="breadcrumbBar"] .breadcrumb .breadcrumb-arrow:before {
+  font-size: 14px;
+  color: #3f8aff;
+}
+[anonid="breadcrumbBar"] menuitem,
+[anonid="breadcrumbBar"] menu {
+  color: #ffffff;
+}
+[anonid="breadcrumbBar"] menuitem.folder-item > .menu-iconic-text,
+[anonid="breadcrumbBar"] menu.folder-item > .menu-iconic-text,
+[anonid="breadcrumbBar"] menuitem.folder-item > .menu-iconic-left,
+[anonid="breadcrumbBar"] menu.folder-item > .menu-iconic-left {
+  color: #b3b3b3;
+}
+[anonid="breadcrumbBar"] menuitem .menu-iconic-left,
+[anonid="breadcrumbBar"] menu .menu-iconic-left {
+  visibility: visible;
+  /* Override OS preference */
+
+}
+[anonid="breadcrumbBar"] menuitem .menu-accel,
+[anonid="breadcrumbBar"] menu .menu-accel {
+  opacity: 0.6;
+}
+[anonid="breadcrumbBar"].is-remote menuitem[anonid="findInFolder"],
+[anonid="breadcrumbBar"].is-remote menuitem[anonid="fastOpenHere"],
+[anonid="breadcrumbBar"].is-remote menuitem[anonid="showInPlaces"] {
+  visibility: collapse;
+}
+[anonid="breadcrumbBar"] [anonid="breadcrumbOverflowBtn"] dropmarker {
+  visibility: collapse;
+}
+[anonid="breadcrumbBar"] [anonid="breadcrumbOverflowBtn"] menuitem .menu-iconic-left {
+  visibility: visible;
+  /* Override OS preference */
+
+}
+[anonid="breadcrumbBar"] sectionlist image[anonid="section-arrows"] {
+  visibility: collapse;
+}

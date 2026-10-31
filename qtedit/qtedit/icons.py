@@ -20,6 +20,7 @@ import re
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (
+    QColor,
     QFont,
     QFontDatabase,
     QGuiApplication,
@@ -41,7 +42,7 @@ _NAME_RE = re.compile(r'@icon-([\w-]+):\s*"\\([0-9a-fA-F]+)"')
 
 _font_family = None  # None until _ensure_font() runs; "" if loading failed
 _codepoints = None  # name -> str, lazily parsed from variables.less
-_icon_cache = {}  # (name, size, color) -> QIcon
+_icon_cache = {}  # (codepoint, size, color) -> QIcon
 
 
 def _ensure_font():
@@ -55,6 +56,11 @@ def _ensure_font():
         if families:
             _font_family = families[0]
     return _font_family
+
+
+def font_family():
+    """Family name of the loaded IcoMoon font ("" if it failed to load)."""
+    return _ensure_font()
 
 
 def _ensure_codepoints():
@@ -77,14 +83,30 @@ def icon(name, size=16, color=None):
     the full list of 234 names). Returns a null QIcon if the font or the
     glyph name can't be resolved -- callers can still setIcon() with it
     safely (Qt just shows no icon)."""
-    family = _ensure_font()
     codepoint = _ensure_codepoints().get(name)
-    if not family or codepoint is None:
+    if codepoint is None:
+        return QIcon()
+    return glyph(codepoint, size, color)
+
+
+def css_glyph(content):
+    """The character a Komodo CSS `content: "\\e9dc"` value names."""
+    text = content.strip().strip("'\"")
+    if text.startswith("\\"):
+        return chr(int(text[1:], 16))
+    return text
+
+
+def glyph(codepoint, size=16, color=None):
+    """A QIcon for a single IcoMoon character, e.g. one taken from Komodo's
+    skin CSS via css_glyph()."""
+    family = _ensure_font()
+    if not family:
         return QIcon()
 
     if color is None:
         color = QGuiApplication.palette().color(QPalette.ColorRole.ButtonText)
-    cache_key = (name, size, color.name())
+    cache_key = (codepoint, size, color.name(QColor.NameFormat.HexArgb))
     cached = _icon_cache.get(cache_key)
     if cached is not None:
         return cached

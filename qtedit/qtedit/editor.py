@@ -12,6 +12,7 @@ to revisit once this grows beyond a spike.
 import os
 
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QFontDatabase
 from pygments.lexers import get_lexer_for_filename, get_lexer_by_name
 from pygments.util import ClassNotFound
 from pygments.token import Token
@@ -118,14 +119,31 @@ STYLE_DEFAULT = 32
 # colour order) to the 0xBBGGRR hex this module already uses.
 BACKGROUND = 0x332C2C  # default_fixed.back
 FOREGROUND = 0xFFFFFF  # identifiers / default_fixed.fore
-BREAKPOINT_MARGIN = 1
+# Margin numbers follow Komodo's own layout (SciMoz/ISciMoz.template.idl):
+# 0 symbols (breakpoints, bookmarks), 1 line numbers, 3 folding.
+BREAKPOINT_MARGIN = 0
+LINE_NUMBER_MARGIN = 1
 MARKER_BREAKPOINT = 1
 MARKER_CURRENT_LINE = 2
 MARKER_BREAKPOINT_COND = 3  # has a condition and/or ignore count set
 BREAKPOINT_COLOR = 0x2020E0  # a clear, conventional breakpoint red
 BREAKPOINT_COND_COLOR = 0x20A0E0  # orange -- visually distinct from a plain breakpoint
 CURRENT_LINE_COLOR = 0x30B8E0  # amber execution-line highlight
-FOLD_MARGIN = 2
+FOLD_MARGIN = 3
+# koDocumentSettingsManager._apply_editFoldStyle: 15px, and only for
+# languages that can fold at all (here: UDL-lexed buffers).
+FOLD_MARGIN_WIDTH = 15
+FOLD_MARGIN_COLOR = 0x332C2C  # Colors.foldMarginColor
+LINE_NUMBER_FONT_SIZE = 10  # linenumbers.size
+LINE_SPACING = 2  # default_fixed.lineSpacing, split into extra ascent/descent
+
+# default_fixed.face/size from the same Default.ksf: a CSS-style fallback
+# list, resolved to the first family actually installed (see _editor_font).
+EDITOR_FONT_FACES = [
+    "Monaco", "Consolas", "Inconsolata", "DejaVu Sans Mono",
+    "Bitstream Vera Sans Mono", "Menlo", "Courier New", "Courier", "Monospace",
+]
+EDITOR_FONT_SIZE = 11
 
 MARGIN_BACKGROUND = 0x242020  # linenumbers.back == Colors.caretLineBack
 MARGIN_FOREGROUND = 0x969896  # linenumbers.fore
@@ -157,6 +175,14 @@ def _style_id_for(token_type):
     return STYLE_DEFAULT
 
 
+def _editor_font():
+    installed = set(QFontDatabase.families())
+    for face in EDITOR_FONT_FACES:
+        if face in installed:
+            return face
+    return QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont).family()
+
+
 class CodeEditor(ScintillaEdit):
     breakpointsChanged = Signal()  # emitted after a real user edit to
     # breakpoints/conditions/ignore counts -- NOT emitted by
@@ -167,6 +193,7 @@ class CodeEditor(ScintillaEdit):
         super().__init__(parent)
         self._lexer = None
         self._udl_interpreter = None
+        self._udl_language = None
         self._rehighlighting = False
         # Plain attribute, not a Qt property: ScintillaEdit already has an
         # (unrelated, read-only) meta-property literally named "filepath",
@@ -193,21 +220,30 @@ class CodeEditor(ScintillaEdit):
         # below) inherits Scintilla's built-in white background instead.
         self.styleSetFore(STYLE_DEFAULT, FOREGROUND)
         self.styleSetBack(STYLE_DEFAULT, BACKGROUND)
+        self.styleSetFont(STYLE_DEFAULT, _editor_font())
+        self.styleSetSize(STYLE_DEFAULT, EDITOR_FONT_SIZE)
+        # Same split as koScintillaSchemeService: floor above, ceil below.
+        self.setExtraAscent(LINE_SPACING // 2)
+        self.setExtraDescent(LINE_SPACING - LINE_SPACING // 2)
         self.styleClearAll()
         for _token, style_id, color in TOKEN_STYLES:
             self.styleSetFore(style_id, color)
 
         self.styleSetFore(Scintilla.StylesCommon.LineNumber, MARGIN_FOREGROUND)
         self.styleSetBack(Scintilla.StylesCommon.LineNumber, MARGIN_BACKGROUND)
+        self.styleSetSize(Scintilla.StylesCommon.LineNumber, LINE_NUMBER_FONT_SIZE)
         self.setCaretFore(CARET_COLOR)
         self.setCaretLineVisible(True)
         self.setCaretLineBack(MARGIN_BACKGROUND)
         self.setSelBack(True, SELECTION_BACKGROUND)
 
-        self.setMarginTypeN(0, Scintilla.MarginType.Number)
-        self.setMarginWidthN(0, 45)
+        self.setMarginTypeN(LINE_NUMBER_MARGIN, Scintilla.MarginType.Number)
+        self.setMarginMaskN(LINE_NUMBER_MARGIN, 0)
+        self._line_count = 0
+        self._line_numbers_visible = True
+        self._update_line_number_margin()
 
-        # Margin 1: clickable breakpoint gutter (see debugger/ -- there is
+        # Margin 0: clickable breakpoint gutter (see debugger/ -- there is
         # no legacy breakpoint UI to match, this is a from-scratch design).
         self.setMarginTypeN(BREAKPOINT_MARGIN, Scintilla.MarginType.Symbol)
         self.setMarginWidthN(BREAKPOINT_MARGIN, 16)
@@ -228,7 +264,7 @@ class CodeEditor(ScintillaEdit):
         self.markerDefine(Scintilla.MarkerSymbol.Background, MARKER_CURRENT_LINE)
         self.markerSetBack(MARKER_CURRENT_LINE, CURRENT_LINE_COLOR)
 
-        # Margin 2: folding gutter, driven by udl/interpreter.py's
+        # Margin 3: folding gutter, driven by udl/interpreter.py's
         # compute_fold_levels() for UDL-lexed buffers (see _rehighlight
         # below) -- Pygments-lexed buffers just get an empty margin, since
         # Pygments has no fold-flipper data to draw from. Only the classic
@@ -236,8 +272,10 @@ class CodeEditor(ScintillaEdit):
         # connector markers (FolderSub/FolderTail/etc.) -- simpler and
         # sufficient for a first pass.
         self.setMarginTypeN(FOLD_MARGIN, Scintilla.MarginType.Symbol)
-        self.setMarginWidthN(FOLD_MARGIN, 16)
+        self.setMarginWidthN(FOLD_MARGIN, 0)
         self.setMarginMaskN(FOLD_MARGIN, Scintilla.MaskFolders)
+        self.setFoldMarginColour(True, FOLD_MARGIN_COLOR)
+        self.setFoldMarginHiColour(True, FOLD_MARGIN_COLOR)
         self.markerDefine(Scintilla.MarkerSymbol.Plus, Scintilla.MarkerOutline.Folder)
         self.markerDefine(Scintilla.MarkerSymbol.Minus, Scintilla.MarkerOutline.FolderOpen)
         for marker in (Scintilla.MarkerOutline.Folder, Scintilla.MarkerOutline.FolderOpen):
@@ -317,9 +355,18 @@ class CodeEditor(ScintillaEdit):
         except LexResParseError:
             return False
         self._udl_interpreter = UDLInterpreter(parsed)
+        self._udl_language = language_name
         self._lexer = None
         self._rehighlight()
         return True
+
+    def language_name(self):
+        """Display name of the active language (statusbar language menu)."""
+        if self._udl_interpreter is not None:
+            return self._udl_language
+        if self._lexer is not None:
+            return self._lexer.name
+        return None
 
     def current_text(self):
         length = self.length()
@@ -333,10 +380,33 @@ class CodeEditor(ScintillaEdit):
         )
         if changed_text:
             self.edit_generation += 1
+            if self.lineCount() != self._line_count:
+                self._update_line_number_margin()
         if changed_text and not self._rehighlighting:
             self._rehighlight()
 
+    def set_line_numbers_visible(self, visible):
+        """koDocumentSettingsManager._apply_showLineNumbers."""
+        self._line_numbers_visible = visible
+        if visible:
+            self._update_line_number_margin()
+        else:
+            self.setMarginWidthN(LINE_NUMBER_MARGIN, 0)
+
+    def _update_line_number_margin(self):
+        """Port of SciMoz::UpdateMarginWidths: wide enough for the line
+        count (at least two digits) plus 4px padding."""
+        self._line_count = self.lineCount()
+        if not self._line_numbers_visible:
+            return
+        digits = str(self._line_count) if self._line_count >= 100 else "00"
+        width = self.textWidth(Scintilla.StylesCommon.LineNumber, digits) + 4
+        self.setMarginWidthN(LINE_NUMBER_MARGIN, width)
+
     def _rehighlight(self):
+        self.setMarginWidthN(
+            FOLD_MARGIN, FOLD_MARGIN_WIDTH if self._udl_interpreter is not None else 0
+        )
         if self._udl_interpreter is None and self._lexer is None:
             return
         self._rehighlighting = True

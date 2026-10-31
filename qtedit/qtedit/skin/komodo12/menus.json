@@ -1,0 +1,2101 @@
+{
+ "source": "/home/mause/.komodo (komodo.xul + overlays), keybinding scheme Legacy",
+ "menus": [
+  {
+   "type": "menu",
+   "id": "menu_file",
+   "label": "File",
+   "accesskey": "F",
+   "children": [
+    {
+     "type": "menu",
+     "id": "menu_file_new",
+     "label": "New",
+     "accesskey": "N",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_file_newTab",
+       "label": "New Tab...",
+       "command": "cmd_newTab",
+       "shortcut": "Ctrl+T"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_file_newFile",
+       "label": "New File...",
+       "accesskey": "F",
+       "command": "cmd_new",
+       "shortcut": "Ctrl+N"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_file_newFileFromTemplate",
+       "label": "File from Template...",
+       "accesskey": "T",
+       "command": "cmd_newTemplate",
+       "shortcut": "Ctrl+Shift+N"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_newWindow",
+       "label": "New Window",
+       "accesskey": "N",
+       "command": "cmd_newWindow"
+      }
+     ],
+     "popup_id": "popup_filenew"
+    },
+    {
+     "type": "menu",
+     "id": "menu_file_open",
+     "label": "Open",
+     "accesskey": "O",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_openFile",
+       "label": "File...",
+       "command": "cmd_open",
+       "shortcut": "Ctrl+O"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_openRemoteFile",
+       "label": "Remote File...",
+       "command": "cmd_open_remote"
+      }
+     ],
+     "popup_id": "popup_file_open"
+    },
+    {
+     "type": "menu",
+     "id": "close_menu",
+     "label": "Close",
+     "accesskey": "C",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "close_tab_menuitem",
+       "label": "Current File",
+       "accesskey": "T",
+       "command": "cmd_bufferClose",
+       "shortcut": "Ctrl+W"
+      },
+      {
+       "type": "menuitem",
+       "id": "close_other_tabs_menuitem",
+       "label": "Other Files",
+       "accesskey": "O",
+       "command": "cmd_bufferCloseOthers"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_closeAll",
+       "label": "All Files",
+       "accesskey": "A",
+       "command": "cmd_closeAll"
+      }
+     ],
+     "popup_id": "close_menupopup"
+    },
+    {
+     "type": "separator",
+     "id": "file_recent_menuseparator"
+    },
+    {
+     "type": "menu",
+     "id": "menu_recentlyClosedTabs",
+     "label": "Recently Closed Tabs",
+     "accesskey": "T",
+     "children": [],
+     "popup_id": "popup_recentlyClosedTabs"
+    },
+    {
+     "type": "menu",
+     "id": "menu_mruFiles",
+     "label": "Recent Files",
+     "accesskey": "F",
+     "children": [],
+     "popup_id": "popup_mruFiles"
+    },
+    {
+     "type": "menu",
+     "id": "menu_mruWindows",
+     "label": "Recent Windows",
+     "accesskey": "w",
+     "children": [],
+     "popup_id": "popup_mruWindows"
+    },
+    {
+     "type": "separator",
+     "id": "file_save_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_save",
+     "label": "Save",
+     "accesskey": "S",
+     "command": "cmd_save",
+     "shortcut": "Ctrl+S"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_saveAs",
+     "label": "Save As...",
+     "accesskey": "A",
+     "command": "cmd_saveAs"
+    },
+    {
+     "type": "menu",
+     "id": "file_saveAs_menu",
+     "label": "Save As Other",
+     "accesskey": "E",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_saveAsRemote",
+       "label": "Remote File...",
+       "command": "cmd_saveAs_remote"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_saveAsTemplate",
+       "label": "Template...",
+       "command": "cmd_saveAsTemplate"
+      }
+     ],
+     "popup_id": "file_saveAs_menupopup"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_showUnsavedChanges",
+     "label": "Show Unsaved Changes",
+     "accesskey": "U",
+     "command": "cmd_showUnsavedChanges"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_revert",
+     "label": "Revert",
+     "accesskey": "v",
+     "command": "cmd_revert"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_saveAll",
+     "label": "Save All",
+     "accesskey": "l",
+     "command": "cmd_saveAll",
+     "shortcut": "Ctrl+Shift+S"
+    },
+    {
+     "type": "separator",
+     "id": "file_refresh_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_refreshStatus",
+     "label": "Refresh Status",
+     "accesskey": "R",
+     "command": "cmd_refreshStatus",
+     "shortcut": "Ctrl+K R"
+    },
+    {
+     "type": "separator",
+     "id": "file_print_menuseparator"
+    },
+    {
+     "type": "menu",
+     "id": "menu_Printmenu",
+     "label": "Print",
+     "accesskey": "P",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_printSetup",
+       "label": "Page Setup",
+       "oncommand": "require('ko/printing').showPageSetup();"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_PrintSettings",
+       "label": "Print Settings",
+       "accesskey": "g",
+       "oncommand": "prefs_doGlobalPrefs('printItem');"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_printPreview",
+       "label": "Print Preview",
+       "accesskey": "e",
+       "command": "cmd_printPreview"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_printPreviewSelection",
+       "label": "Print Preview Selection",
+       "command": "cmd_printPreviewSelection"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_print",
+       "label": "Print",
+       "accesskey": "P",
+       "command": "cmd_print"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_printSelected",
+       "label": "Print Selected Text...",
+       "command": "cmd_printSelection"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_exportHTML",
+       "label": "Print to HTML File...",
+       "accesskey": "M",
+       "command": "cmd_exportHTML"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_exportHTMLSelection",
+       "label": "Print Selected Text to HTML File...",
+       "accesskey": "S",
+       "command": "cmd_exportHTMLSelection"
+      }
+     ],
+     "popup_id": "popup_Printmenu"
+    },
+    {
+     "type": "separator",
+     "id": "menu_FileQuitSeparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_FileQuitItem",
+     "label": "Quit",
+     "accesskey": "Q",
+     "command": "cmd_quit"
+    }
+   ],
+   "popup_id": "popup_file"
+  },
+  {
+   "type": "menu",
+   "id": "menu_edit",
+   "label": "Edit",
+   "accesskey": "E",
+   "children": [
+    {
+     "type": "menuitem",
+     "id": "menu_editUndo",
+     "label": "Undo",
+     "accesskey": "U",
+     "command": "cmd_undo",
+     "shortcut": "Ctrl+Z"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_editRedo",
+     "label": "Redo",
+     "accesskey": "O",
+     "command": "cmd_redo",
+     "shortcut": "Ctrl+Y"
+    },
+    {
+     "type": "separator",
+     "id": "edit_cut_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_editCut",
+     "label": "Cut",
+     "accesskey": "T",
+     "command": "cmd_cut",
+     "shortcut": "Ctrl+X"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_editCopy",
+     "label": "Copy",
+     "accesskey": "C",
+     "command": "cmd_copy",
+     "shortcut": "Ctrl+C"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_editPaste",
+     "label": "Paste",
+     "accesskey": "P",
+     "command": "cmd_paste",
+     "shortcut": "Ctrl+V"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_editPasteHtml",
+     "label": "Paste HTML",
+     "accesskey": "M",
+     "command": "cmd_pasteHtml"
+    },
+    {
+     "type": "separator",
+     "id": "edit_menu_select_separator"
+    },
+    {
+     "type": "menu",
+     "id": "edit_menu_select_menu",
+     "label": "Select",
+     "accesskey": "S",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_editSelectAll",
+       "label": "Select All",
+       "accesskey": "A",
+       "command": "cmd_selectAll",
+       "shortcut": "Ctrl+A"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_blockSelect",
+       "label": "Select Block",
+       "accesskey": "B",
+       "command": "cmd_blockSelect",
+       "shortcut": "Ctrl+B"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_delimitedBlockSelect",
+       "label": "Select Delimited Block",
+       "accesskey": "D",
+       "command": "cmd_delimitedBlockSelect"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_selectToMatchingBrace",
+       "label": "Select to Matching Brace",
+       "accesskey": "C",
+       "command": "cmd_selectToMatchingBrace",
+       "shortcut": "Ctrl+Shift+]"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_addNextWordToCaretSet",
+       "label": "Multiple Selection - Add Next Occurrence",
+       "command": "cmd_addNextWordToCaretSet",
+       "shortcut": "Ctrl+D"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_removePrevWordInCaretSet",
+       "label": "Multiple Selection - Remove Previous Occurrence",
+       "command": "cmd_removePrevWordInCaretSet",
+       "shortcut": "Ctrl+Shift+D"
+      }
+     ],
+     "popup_id": "edit_menu_select_menupopup"
+    },
+    {
+     "type": "separator",
+     "id": "edit_find_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_find",
+     "label": "Find...",
+     "accesskey": "F",
+     "command": "cmd_find"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_replace",
+     "label": "Replace...",
+     "accesskey": "R",
+     "command": "cmd_replace",
+     "shortcut": "Ctrl+H"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_findInFiles",
+     "label": "Find in Files...",
+     "command": "cmd_findInFiles",
+     "shortcut": "Ctrl+Shift+F"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_replaceInFiles",
+     "label": "Replace in Files...",
+     "command": "cmd_replaceInFiles",
+     "shortcut": "Ctrl+Shift+H"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_findInCurrProject",
+     "label": "Find in Current Project...",
+     "command": "cmd_findInCurrProject"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_replaceInCurrProject",
+     "label": "Replace in Current Project...",
+     "command": "cmd_replaceInCurrProject"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_findNext",
+     "label": "Find Next",
+     "accesskey": "N",
+     "command": "cmd_findNext",
+     "shortcut": "F3"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_startIncrementalSearch",
+     "label": "Incremental Search",
+     "accesskey": "I",
+     "command": "cmd_startIncrementalSearch",
+     "shortcut": "Ctrl+F"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_clearSearchHighlighting",
+     "label": "Clear Highlighting",
+     "accesskey": "H",
+     "command": "cmd_cancel",
+     "shortcut": "Escape"
+    },
+    {
+     "type": "separator",
+     "id": "edit_pref_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_preferences",
+     "label": "Preferences...",
+     "accesskey": "e",
+     "command": "cmd_editPrefs"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_editPrefsCurrent",
+     "label": "Current File Preferences...",
+     "accesskey": "l",
+     "command": "cmd_editPrefsCurrent"
+    }
+   ],
+   "popup_id": "popup_edit"
+  },
+  {
+   "type": "menu",
+   "id": "menu_code",
+   "label": "Code",
+   "accesskey": "C",
+   "children": [
+    {
+     "type": "menuitem",
+     "id": "menu_comment",
+     "label": "Comment Region",
+     "accesskey": "C",
+     "command": "cmd_comment",
+     "shortcut": "Ctrl+/"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_uncomment",
+     "label": "Un-comment Region",
+     "accesskey": "U",
+     "command": "cmd_uncomment",
+     "shortcut": "Ctrl+Shift+?"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_indent",
+     "label": "Indent",
+     "accesskey": "I",
+     "command": "cmd_indent"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_dedent",
+     "label": "Unindent",
+     "accesskey": "D",
+     "command": "cmd_dedent"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_tabify",
+     "label": "Tabify Region",
+     "accesskey": "T",
+     "command": "cmd_tabify"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_untabify",
+     "label": "Untabify Region",
+     "accesskey": "N",
+     "command": "cmd_untabify"
+    },
+    {
+     "type": "separator",
+     "id": "menu_code_separator_1"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_join",
+     "label": "Join Lines",
+     "accesskey": "J",
+     "command": "cmd_join",
+     "shortcut": "Ctrl+K Ctrl+J"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_reflow",
+     "label": "Reflow Paragraph",
+     "accesskey": "R",
+     "command": "cmd_editReflow",
+     "shortcut": "Ctrl+Q"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_cleanLineEndings",
+     "label": "Clean Line Endings",
+     "accesskey": "E",
+     "command": "cmd_cleanLineEndings"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_removeTrailingWhitespace",
+     "label": "Remove Trailing Whitespace",
+     "accesskey": "W",
+     "command": "cmd_removeTrailingWhitespace"
+    },
+    {
+     "type": "separator",
+     "id": "codeConvert_menuseparator"
+    },
+    {
+     "type": "menu",
+     "id": "codeConvert_menu",
+     "label": "Convert Selected Text",
+     "accesskey": "V",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_convertUpperCase",
+       "label": "Make Uppercase",
+       "command": "cmd_convertUpperCase",
+       "shortcut": "Ctrl+U"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_convertLowerCase",
+       "label": "Make Lowercase",
+       "command": "cmd_convertLowerCase",
+       "shortcut": "Ctrl+Alt+U"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_convertTitleCase",
+       "label": "Make Title Case",
+       "command": "cmd_convertTitleCase"
+      },
+      {
+       "type": "separator",
+       "id": "codeConvertHex_menuseparator"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_convertToHex",
+       "label": "To Hexadecimal",
+       "command": "cmd_convertToHex"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_convertFromHex",
+       "label": "From Hexadecimal",
+       "command": "cmd_convertFromHex"
+      }
+     ],
+     "popup_id": "codeConvert_menupopup"
+    },
+    {
+     "type": "separator",
+     "id": "code_codeintel_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_completeWord",
+     "label": "Complete Word",
+     "command": "cmd_completeWord",
+     "shortcut": "Ctrl+Space"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_codeIntelReTriggerCompletions",
+     "label": "CodeIntel Completions",
+     "accesskey": "O",
+     "command": "cmd_triggerPrecedingCompletion",
+     "shortcut": "Ctrl+J"
+    },
+    {
+     "type": "separator",
+     "id": "code_keys_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_rawKey",
+     "label": "Enter Next Character as Raw Literal",
+     "command": "cmd_rawKey",
+     "shortcut": "Ctrl+M"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_repeatNextCommandBy",
+     "label": "Repeat Next Keystroke N Times",
+     "command": "cmd_repeatNextCommandBy",
+     "shortcut": "Ctrl+K Ctrl+U"
+    }
+   ],
+   "popup_id": "popup_sourcecode"
+  },
+  {
+   "type": "menu",
+   "id": "navigation_menu",
+   "label": "Navigation",
+   "accesskey": "N",
+   "children": [
+    {
+     "type": "menuitem",
+     "id": "menu_historyBack",
+     "label": "Back",
+     "accesskey": "B",
+     "command": "cmd_historyBack",
+     "shortcut": "Alt+Left"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_historyForward",
+     "label": "Forward",
+     "accesskey": "F",
+     "command": "cmd_historyForward",
+     "shortcut": "Alt+Right"
+    },
+    {
+     "type": "separator",
+     "id": "naviation_menupopup_separator_commando"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_show_commando",
+     "label": "Commando: Go to Anything",
+     "oncommand": "ko.commands.doCommand('cmd_showCommando', event)"
+    },
+    {
+     "type": "separator",
+     "id": "naviation_menupopup_separator_editor_nav"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_gotoLine",
+     "label": "Go to Line...",
+     "accesskey": "G",
+     "command": "cmd_gotoLine",
+     "shortcut": "Ctrl+G"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_goToDefinition",
+     "label": "Go to Definition",
+     "accesskey": "D",
+     "command": "cmd_goToDefinition",
+     "shortcut": "Ctrl+K Ctrl+G"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_jumpToMatchingBrace",
+     "label": "Go to Matching Brace",
+     "command": "cmd_jumpToMatchingBrace",
+     "shortcut": "Ctrl+]"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_jumpToParentFold",
+     "label": "Go to Parent Fold",
+     "command": "cmd_jumpToParentFold"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_jumpToPreviousFold",
+     "label": "Go to Previous Fold",
+     "command": "cmd_jumpToPreviousFold"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_jumpToNextFold",
+     "label": "Go to Next Fold",
+     "command": "cmd_jumpToNextFold"
+    },
+    {
+     "type": "menuitem",
+     "id": "editor-jump-corresponding",
+     "label": "Go to Corresponding Line (for Diff mode)",
+     "command": "cmd_jumpToCorrespondingLine"
+    },
+    {
+     "type": "separator",
+     "id": "naviation_menupopup_find_separator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_findNextFunction",
+     "label": "Find Next Function",
+     "command": "cmd_findNextFunction"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_findPreviousFunction",
+     "label": "Find Previous Function",
+     "command": "cmd_findPreviousFunction"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_findAllFunctions",
+     "label": "Find All Functions",
+     "command": "cmd_findAllFunctions"
+    },
+    {
+     "type": "separator",
+     "id": "naviation_menupopup_bookmarks_separator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_bookmarkToggle",
+     "label": "Toggle Bookmark",
+     "accesskey": "T",
+     "command": "cmd_bookmarkToggle",
+     "shortcut": "Ctrl+F2"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_bookmarkGotoNext",
+     "label": "Go to Next Bookmark",
+     "accesskey": "N",
+     "command": "cmd_bookmarkGotoNext",
+     "shortcut": "F2"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_bookmarkGotoPrevious",
+     "label": "Go to Previous Bookmark",
+     "accesskey": "P",
+     "command": "cmd_bookmarkGotoPrevious",
+     "shortcut": "Shift+F2"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_bookmarkRemoveAll",
+     "label": "Remove All Bookmarks",
+     "accesskey": "R",
+     "command": "cmd_bookmarkRemoveAll",
+     "shortcut": "Ctrl+Shift+F2"
+    },
+    {
+     "type": "separator",
+     "id": "naviation_menupopup_scroll_separator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_editCenterVertically",
+     "label": "Scroll Current Line to Center of Screen",
+     "command": "cmd_editCenterVertically"
+    },
+    {
+     "type": "menuitem",
+     "id": "move_editMoveCurrentLineToTop",
+     "label": "Scroll Current Line to Top of Screen",
+     "command": "cmd_editMoveCurrentLineToTop"
+    }
+   ],
+   "popup_id": "naviation_menupopup"
+  },
+  {
+   "type": "menu",
+   "id": "menu_view",
+   "label": "View",
+   "accesskey": "V",
+   "children": [
+    {
+     "type": "menu",
+     "id": "menu_view_tabs",
+     "label": "Tabs & Sidebars",
+     "children": [],
+     "popup_id": "menu_view_tabs_popup"
+    },
+    {
+     "type": "menu",
+     "id": "menu_toolbars",
+     "label": "Toolbars",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_toggleToolbars",
+       "label": "Show Toolbars",
+       "command": "cmd_toggleToolbars",
+       "checkable": "checkbox"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_toggleMenubar",
+       "label": "Show Menubar",
+       "command": "cmd_toggleMenubar",
+       "checkable": "checkbox"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_toggleTabBar",
+       "label": "Show Editor Tabs",
+       "command": "cmd_toggleTabBar",
+       "checkable": "checkbox"
+      },
+      {
+       "type": "separator",
+       "id": "popup_toolbars_custom_separator"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_customizeToolbars",
+       "label": "Customize...",
+       "accesskey": "C",
+       "command": "cmd_CustomizeToolbars"
+      }
+     ],
+     "popup_id": "popup_toolbars"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_previewInBrowser",
+     "label": "Browser Preview",
+     "accesskey": "B",
+     "command": "cmd_browserPreview",
+     "shortcut": "Ctrl+K Ctrl+V"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_reloadBrowserPreview",
+     "label": "Reload Browser Preview",
+     "accesskey": "P",
+     "command": "cmd_reloadBrowserPreview",
+     "shortcut": "Ctrl+K Ctrl+R"
+    },
+    {
+     "type": "separator",
+     "id": "view_menu_splitview_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_moveTab",
+     "label": "Move to Split View",
+     "accesskey": "M",
+     "command": "cmd_movetab"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_splitTab",
+     "label": "Split View",
+     "accesskey": "S",
+     "command": "cmd_splittab"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_rotateSplitter",
+     "label": "Rotate Split View",
+     "accesskey": "R",
+     "command": "cmd_rotateSplitter"
+    },
+    {
+     "type": "separator",
+     "id": "view_menu_editor_settings_menuseparator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_viewWhitespace",
+     "label": "View Whitespace",
+     "accesskey": "H",
+     "command": "cmd_viewWhitespace"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_viewIndentationGuides",
+     "label": "View Indentation Guides",
+     "accesskey": "G",
+     "command": "cmd_viewIndentationGuides"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_viewLineNumbers",
+     "label": "View Line Numbers",
+     "accesskey": "N",
+     "command": "cmd_viewLineNumbers"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_viewEOLMarkers",
+     "label": "View EOL Markers",
+     "accesskey": "E",
+     "command": "cmd_viewEOL"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_wordWrap",
+     "label": "Word Wrap",
+     "accesskey": "W",
+     "command": "cmd_wordWrap"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_showHideMinimap",
+     "label": "View Minimap",
+     "accesskey": "M",
+     "command": "cmd_showHideMinimap",
+     "checkable": "checkbox"
+    },
+    {
+     "type": "separator",
+     "id": "view_menu_menuseparator_2"
+    },
+    {
+     "type": "menu",
+     "id": "menu_viewAsLanguage",
+     "label": "View as Language",
+     "accesskey": "L",
+     "children": [],
+     "popup_id": "popup_viewAsLanguage"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_fontZoomIn",
+     "label": "Increase Font Size",
+     "accesskey": "I",
+     "command": "cmd_fontZoomIn",
+     "shortcut": "Ctrl++"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_fontZoomOut",
+     "label": "Decrease Font Size",
+     "accesskey": "D",
+     "command": "cmd_fontZoomOut",
+     "shortcut": "Ctrl+-"
+    },
+    {
+     "type": "menuitem",
+     "id": "menuitem_fullScreen",
+     "label": "Full Screen",
+     "accesskey": "F",
+     "command": "cmd_viewFullScreen",
+     "shortcut": "Ctrl+K F11",
+     "checkable": "checkbox"
+    },
+    {
+     "type": "separator",
+     "id": "view_menu_fold_separator"
+    },
+    {
+     "type": "menu",
+     "id": "menu_fold",
+     "label": "Fold",
+     "accesskey": "O",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_foldExpand",
+       "label": "Expand",
+       "command": "cmd_foldExpand"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_foldExpandAll",
+       "label": "Expand All",
+       "command": "cmd_foldExpandAll"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_foldExpandRecursive",
+       "label": "Expand Recursively",
+       "command": "cmd_foldExpandRecursive"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_foldCollapse",
+       "label": "Collapse",
+       "command": "cmd_foldCollapse"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_foldCollapseAll",
+       "label": "Collapse All",
+       "command": "cmd_foldCollapseAll"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_foldCollapseRecursive",
+       "label": "Collapse Recursively",
+       "command": "cmd_foldCollapseRecursive"
+      }
+     ],
+     "popup_id": "popup_fold"
+    }
+   ],
+   "popup_id": "popup_view"
+  },
+  {
+   "type": "menu",
+   "id": "menu_project",
+   "label": "Project",
+   "accesskey": "P",
+   "children": [
+    {
+     "type": "menuitem",
+     "id": "menu_openProject",
+     "label": "Open Project...",
+     "command": "cmd_openProject",
+     "shortcut": "Ctrl+Shift+J"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_projectOpenProject",
+     "label": "Open Project In New Window...",
+     "command": "cmd_openProjectNewWindow"
+    },
+    {
+     "type": "menu",
+     "id": "menu_recentProjects",
+     "label": "Recent Projects",
+     "children": [],
+     "popup_id": "recentProjects_menupopup"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_sampleProject",
+     "label": "Sample Project",
+     "command": "cmd_sampleProject"
+    },
+    {
+     "type": "separator",
+     "id": "menu_project_separator_1"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_projectNewProject",
+     "label": "New Project...",
+     "command": "cmd_newProject"
+    },
+    {
+     "type": "menu",
+     "id": "menu_project_templates",
+     "label": "New From Template",
+     "accesskey": "t",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "createKoLangExtProject",
+       "label": "Create Komodo Language",
+       "accesskey": "L",
+       "oncommand": "ko.koextgen.createExtGenProject('komodolang');"
+      },
+      {
+       "type": "separator",
+       "id": "menu_project_builtin_templates_separator"
+      }
+     ],
+     "popup_id": "popup_project_templates"
+    },
+    {
+     "type": "separator",
+     "id": "menu_project_separator_2"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_closeProject",
+     "label": "Close Project",
+     "command": "cmd_closeProject"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_closeAllProjects",
+     "label": "Close All Projects",
+     "command": "cmd_closeAllProjects"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_showProjectInPlaces",
+     "label": "Show in Places",
+     "command": "cmd_showProjectInPlaces"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_saveProject",
+     "label": "Save Project",
+     "command": "cmd_saveProject"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_saveProjectAs",
+     "label": "Save Project As...",
+     "command": "cmd_saveProjectAs"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_renameProject",
+     "label": "Rename Project...",
+     "command": "cmd_renameProject"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_revertProject",
+     "label": "Revert Project",
+     "command": "cmd_revertProject"
+    },
+    {
+     "type": "separator",
+     "id": "menu_project_separator_3"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_projectProperties",
+     "label": "Project Preferences",
+     "accesskey": "P",
+     "command": "cmd_projectProperties"
+    }
+   ],
+   "popup_id": "popup_project"
+  },
+  {
+   "type": "menu",
+   "id": "menu_tools",
+   "label": "Tools",
+   "accesskey": "T",
+   "children": [
+    {
+     "type": "menuitem",
+     "id": "menu_toolsRunCommand",
+     "label": "Run Command...",
+     "accesskey": "R",
+     "command": "cmd_toolsRunCommand",
+     "shortcut": "Ctrl+R"
+    },
+    {
+     "type": "menu",
+     "id": "menu_toolsRecentCommands",
+     "label": "Recent Commands",
+     "accesskey": "e",
+     "children": [],
+     "popup_id": "menu_toolsRecentCommands_popup"
+    },
+    {
+     "type": "menu",
+     "id": "menu_macros",
+     "label": "Macros",
+     "accesskey": "M",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "macroNew_menuitem",
+       "label": "Create New Macro",
+       "accesskey": "C",
+       "command": "cmd_macroNew"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_startMacroMode",
+       "label": "Start Recording",
+       "command": "cmd_startMacroMode",
+       "shortcut": "Ctrl+K ("
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_pauseMacroMode",
+       "label": "Pause Recording",
+       "command": "cmd_pauseMacroMode"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_stopMacroMode",
+       "label": "Stop Recording",
+       "command": "cmd_stopMacroMode",
+       "shortcut": "Ctrl+K )"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_executeLastMacro",
+       "label": "Run Last Macro",
+       "command": "cmd_executeLastMacro",
+       "shortcut": "Ctrl+K _"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_saveMacroToToolbox",
+       "label": "Save as Userscript",
+       "command": "cmd_saveMacroToToolbox"
+      }
+     ],
+     "popup_id": "popup_macros"
+    },
+    {
+     "type": "separator",
+     "id": "menu_addons_separator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_extensionmanager",
+     "label": "Add-ons",
+     "accesskey": "A",
+     "command": "cmd_openextmgr"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_extensionmanagerLegacy",
+     "label": "Add-ons (Legacy)",
+     "oncommand": "ko.windowManager.openOrFocusDialog('chrome://mozapps/content/extensions/extensions.xul', 'Addons:Manager')"
+    },
+    {
+     "type": "separator",
+     "id": "menu_tools_separator"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_watchThread",
+     "label": "Watch File...",
+     "accesskey": "W",
+     "command": "cmd_toolsWatchFile"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_compareFiles",
+     "label": "Compare Files...",
+     "accesskey": "C",
+     "oncommand": "window.openDialog('chrome://komodo/content/dialogs/compare.xul', '_blank', 'chrome,modal,titlebar,resizable');"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_colorSchemeEditor",
+     "label": "Color Scheme Editor",
+     "oncommand": "window.openDialog('chrome://komodo/content/dialogs/colorscheme.xul', 'Komodo:ColorSchemeEditor', 'chrome,resizable,close,centerscreen');"
+    }
+   ],
+   "popup_id": "popup_tools"
+  },
+  {
+   "type": "menu",
+   "id": "help_menu",
+   "label": "Help",
+   "accesskey": "H",
+   "children": [
+    {
+     "type": "menuitem",
+     "id": "menu_helpHelp",
+     "label": "Help",
+     "accesskey": "H",
+     "command": "cmd_helpHelp",
+     "shortcut": "F1"
+    },
+    {
+     "type": "menu",
+     "id": "helpLanguagesMenu",
+     "label": "Help for Languages",
+     "accesskey": "L",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "menu_helpPerlRef_Web",
+       "label": "Perl Reference",
+       "command": "cmd_helpPerlRef_Web"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpPerlMailingLists",
+       "label": "Perl Mailing Lists",
+       "command": "cmd_helpPerlMailingLists"
+      },
+      {
+       "type": "separator",
+       "id": null
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpPythonRef_Web",
+       "label": "Python Reference",
+       "command": "cmd_helpPythonRef_Web"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpPythonMailingLists",
+       "label": "Python Mailing Lists",
+       "command": "cmd_helpPythonMailingLists"
+      },
+      {
+       "type": "separator",
+       "id": null
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpPython3Ref_Web",
+       "label": "Python3 Reference",
+       "command": "cmd_helpPython3Ref_Web"
+      },
+      {
+       "type": "separator",
+       "id": null
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpPHPRef_Web",
+       "label": "PHP Reference",
+       "command": "cmd_helpPHPRef_Web"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpPHPMailingLists",
+       "label": "PHP Mailing Lists",
+       "command": "cmd_helpPHPMailingLists"
+      },
+      {
+       "type": "separator",
+       "id": null
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpRubyRef_Web",
+       "label": "Ruby Reference",
+       "command": "cmd_helpRubyRef_Web"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpRubyMailingLists",
+       "label": "Ruby Mailing Lists",
+       "command": "cmd_helpRubyMailingLists"
+      },
+      {
+       "type": "separator",
+       "id": null
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpTclRef_Web",
+       "label": "Tcl Reference",
+       "command": "cmd_helpTclRef_Web"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpTclMailingLists",
+       "label": "Tcl Mailing Lists",
+       "command": "cmd_helpTclMailingLists"
+      },
+      {
+       "type": "separator",
+       "id": null
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpXSLTRef_Web",
+       "label": "XSLT Reference",
+       "command": "cmd_helpXSLTRef_Web"
+      },
+      {
+       "type": "menuitem",
+       "id": "menu_helpXSLTMailingLists",
+       "label": "XSLT Mailing Lists",
+       "command": "cmd_helpXSLTMailingLists"
+      }
+     ],
+     "popup_id": "help-languages-popup"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_helpShowKeybindings",
+     "label": "List Key Bindings",
+     "accesskey": "K",
+     "oncommand": "ko.browse.showKeybindings()"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_helpCheckConfig",
+     "label": "Check Configuration",
+     "oncommand": "window.openDialog('chrome://komodo/content/dialogs/featureControlPanel.xul','Komodo:FeatureControlPanel','chrome,titlebar')"
+    },
+    {
+     "type": "separator",
+     "id": null
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_tryKomodoIDE",
+     "label": "Try Komodo IDE",
+     "oncommand": "ko.browse.openUrlInDefaultBrowser('http://komodoide.com/download/');"
+    },
+    {
+     "type": "separator",
+     "id": "support_separator"
+    },
+    {
+     "type": "menu",
+     "id": "troubleshootingMenu",
+     "label": "Troubleshooting",
+     "accesskey": "S",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": "troubleshootingViewErrorLogMenuItem",
+       "label": "View Log File",
+       "accesskey": "L",
+       "command": "cmd_helpViewErrorLog"
+      },
+      {
+       "type": "menuitem",
+       "id": "troubleshootingAboutMemory",
+       "label": "Memory Usage",
+       "accesskey": "M",
+       "command": "cmd_komodoMemoryUsage"
+      },
+      {
+       "type": "menuitem",
+       "id": "troubleshootingViewBugsMenuItem",
+       "label": "Report a Bug",
+       "accesskey": "B",
+       "command": "cmd_helpViewBugs"
+      },
+      {
+       "type": "separator",
+       "id": null
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Restart in Safe-Mode",
+       "oncommand": "ko.main.restartWithFlag('tempProfile')"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Restart Without Addons",
+       "oncommand": "ko.main.restartWithFlag('tempNoAddons')"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Restart Without Tools",
+       "oncommand": "ko.main.restartWithFlag('tempNoToolbox')"
+      },
+      {
+       "type": "separator",
+       "id": null
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Reset Everything",
+       "oncommand": "ko.main.restartWithFlag('cleanProfile')"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Reset File Preferences",
+       "oncommand": "ko.main.restartWithFlag('cleanDocState')"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Reset UI Setup",
+       "oncommand": "ko.main.restartWithFlag('cleanViewState')"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Reset CodeIntel Database",
+       "oncommand": "ko.main.restartWithFlag('cleanCodeintel')"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Reset Caches",
+       "oncommand": "ko.main.restartWithFlag('cleanCaches')"
+      }
+     ],
+     "popup_id": "help-troubleshooting-popup"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_helpCommunity",
+     "label": "Komodo Community",
+     "command": "cmd_helpCommunity"
+    },
+    {
+     "type": "menuitem",
+     "id": "menu_runStartupWizard",
+     "label": "Run First Start Wizard Again",
+     "oncommand": "ko.windowManager.openDialog('chrome://komodo/content/startupWizard/startupWizard.xul')"
+    },
+    {
+     "type": "separator",
+     "id": null
+    },
+    {
+     "type": "menuitem",
+     "id": "about_menu",
+     "label": "About Komodo",
+     "accesskey": "A",
+     "command": "cmd_helpAbout"
+    }
+   ],
+   "popup_id": "popup_help"
+  },
+  {
+   "type": "menu",
+   "id": "menu_developer_test",
+   "label": "Test",
+   "accesskey": "s",
+   "children": [
+    {
+     "type": "menu",
+     "id": null,
+     "label": "Tools",
+     "accesskey": "T",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Error Console",
+       "oncommand": "ko.windowManager.openOrFocusDialog('chrome://global/content/console.xul',                      'global:console',                      'chrome,all,resizable');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "DOM Inspector",
+       "oncommand": "ko.windowManager.openOrFocusDialog('chrome://inspector/content/',                      'navigator:inspector',                      'chrome,all,resizable');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Component Viewer",
+       "oncommand": "ko.windowManager.openOrFocusDialog('chrome://cview/content/',                      'navigator:cview',                      'chrome,all,resizable');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Venkman JavaScript Debugger",
+       "oncommand": "ko.windowManager.openOrFocusDialog('chrome://venkman/content/',                      'navigator:venkman',                      'chrome,all,resizable');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "JavaScript Telnet (jssh)",
+       "oncommand": "ko.windowManager.openOrFocusDialog('chrome://jssh/content/configure.xul',                      'navigator:jssh',                      'chrome,all,resizable');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Logging Control",
+       "accesskey": "L",
+       "oncommand": "window.openDialog('chrome://komodo/content/library/logging_control.xul', 'Komodo:LoggingControl', 'titlebar,chrome,resizable,close');"
+      }
+     ],
+     "popup_id": "popup_test_tools"
+    },
+    {
+     "type": "menu",
+     "id": null,
+     "label": "XUL",
+     "accesskey": "X",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "XUL Bindings Test",
+       "oncommand": "window.openDialog('chrome://komodo/content/bindings/test/top.xul',                      'navigator:browser',                      'chrome,all,resizable');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "XUL Reference Site",
+       "oncommand": "window.openDialog('http://www.hevanet.com/acorbin/xul/top.xul',                      'navigator:browser',                      'chrome,all,resizable');"
+      }
+     ],
+     "popup_id": "popup_test_xul"
+    },
+    {
+     "type": "menu",
+     "id": null,
+     "label": "Views",
+     "accesskey": "V",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Open File",
+       "oncommand": "ko.open.filePicker();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Split View",
+       "oncommand": "ko.open.filePicker('spliteditor');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Browser View",
+       "oncommand": "ko.views.manager.doFileOpenAsync('http://www.mozilla.org', 'browser');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "XUL View",
+       "accesskey": "X",
+       "oncommand": "ko.open.filePicker('xul');"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Multi-editor View",
+       "oncommand": "ko.open.filePicker('multieditor');"
+      }
+     ],
+     "popup_id": "popup_test_views"
+    },
+    {
+     "type": "menu",
+     "id": null,
+     "label": "Dialogs",
+     "accesskey": "D",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "progress",
+       "oncommand": "test_dialog_progress();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "pickPreview",
+       "oncommand": "test_dialog_pickPreview();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "editEnvVar",
+       "oncommand": "test_dialog_editEnvVar();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "customButtons",
+       "oncommand": "test_dialog_customButtons();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "selectFromList",
+       "oncommand": "test_dialog_selectFromList();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "authenticate",
+       "oncommand": "test_dialog_authenticate();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "alert",
+       "oncommand": "test_dialog_alert();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "okCancel",
+       "oncommand": "test_dialog_okCancel();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "yesNo",
+       "oncommand": "test_dialog_yesNo();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "yesNoCancel",
+       "oncommand": "test_dialog_yesNoCancel();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "prompt",
+       "oncommand": "test_dialog_prompt();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "internalError",
+       "oncommand": "test_dialog_internalError();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "templates ('New File...' dialog)",
+       "oncommand": "test_templates();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "pickIcon",
+       "oncommand": "test_dialog_pickicon();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Wait for command termination",
+       "oncommand": "test_dialog_waitfortermination();"
+      }
+     ],
+     "popup_id": "popup_test_dialogs"
+    },
+    {
+     "type": "menu",
+     "id": null,
+     "label": "File Pickers",
+     "accesskey": "F",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "raw test (without using filepickers.js caching)",
+       "oncommand": "test_ko.filepicker.raw();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "getFolder",
+       "oncommand": "test_ko.filepicker.getFolder();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "openFiles",
+       "oncommand": "test_ko.filepicker.browseForFiles();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "saveFile",
+       "oncommand": "test_ko.filepicker.saveFile();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "openFile",
+       "oncommand": "test_ko.filepicker.browseForFile();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "openExeFile",
+       "oncommand": "test_ko.filepicker.browseForExeFile();"
+      }
+     ],
+     "popup_id": "popup_test_filepickers"
+    },
+    {
+     "type": "menu",
+     "id": null,
+     "label": "Prefs",
+     "accesskey": "P",
+     "children": [
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Edit Global Prefs",
+       "accesskey": "G",
+       "oncommand": "test_editGlobalPrefs();"
+      },
+      {
+       "type": "menuitem",
+       "id": null,
+       "label": "Edit Current View Prefs",
+       "accesskey": "V",
+       "oncommand": "test_editCurrentViewPrefs();"
+      }
+     ],
+     "popup_id": "popup_test_prefs"
+    },
+    {
+     "type": "separator",
+     "id": null
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Test Firefox Textbox Autocomplete",
+     "accesskey": "A",
+     "oncommand": "test_firefoxAutoComplete();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Test Debug Session Tab",
+     "accesskey": "S",
+     "oncommand": "test_debugSessionTab();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Start UI Unit Tests",
+     "oncommand": "test_startUIUnitTests()"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Test Key Handling",
+     "accesskey": "K",
+     "oncommand": "window.openDialog('chrome://komodo/content/testkeys.xul', 'Komodo:TestKeys',                       'titlebar,chrome,resizable,close');"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Test Scintilla Sizing",
+     "accesskey": "Z",
+     "oncommand": "window.openDialog('chrome://komodo/content/testscintilla.xul', 'Komodo:TestScintilla',                       'titlebar,chrome,resizable,close');"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "uriparse.js",
+     "oncommand": "test_uriparse();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Get Event/Command Map",
+     "oncommand": "test_createEventCommandMap();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Time Commands",
+     "accesskey": "C",
+     "oncommand": "test_TimeCommands();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Time Events",
+     "accesskey": "E",
+     "oncommand": "test_TimeEvents();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Dump Current View",
+     "accesskey": "V",
+     "oncommand": "ko.logging.dumpView(ko.views.manager.currentView);"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "SciMoz Tests",
+     "oncommand": "test_scimoz();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "SciMoz Auto-Indent Tests",
+     "oncommand": "test_auto_indent_scimoz();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "SciMoz Soft-Character Tests",
+     "oncommand": "test_soft_chars();"
+    },
+    {
+     "type": "menuitem",
+     "id": null,
+     "label": "Generate Command ID Table",
+     "oncommand": "ko.browse.showCommandIds()"
+    }
+   ],
+   "popup_id": "popup_test"
+  }
+ ],
+ "bindings": {
+  "cmd_addNextWordToCaretSet": "Ctrl+D",
+  "cmd_back": "Shift+Backspace",
+  "cmd_backSmart": "Backspace",
+  "cmd_beginningOfWordExtend": "Ctrl+Shift+W",
+  "cmd_blockSelect": "Ctrl+B",
+  "cmd_bookmarkGotoNext": "F2",
+  "cmd_bookmarkGotoPrevious": "Shift+F2",
+  "cmd_bookmarkRemoveAll": "Ctrl+Shift+F2",
+  "cmd_bookmarkToggle": "Ctrl+F2",
+  "cmd_browserPreview": "Ctrl+K Ctrl+V",
+  "cmd_bufferClose": "Ctrl+W",
+  "cmd_bufferNext": "Ctrl+Page_Down",
+  "cmd_bufferNextLeastRecent": "Ctrl+Shift+F6",
+  "cmd_bufferNextMostRecent": "Ctrl+F6",
+  "cmd_bufferPrevious": "Ctrl+Page_Up",
+  "cmd_cancel": "Escape",
+  "cmd_comment": "Ctrl+/",
+  "cmd_completeWord": "Ctrl+Space",
+  "cmd_completeWordBack": "Ctrl+Shift+Space",
+  "cmd_convertLowerCase": "Ctrl+Alt+U",
+  "cmd_convertUpperCase": "Ctrl+U",
+  "cmd_copy": "Ctrl+C",
+  "cmd_cut": "Ctrl+X",
+  "cmd_dbgBreakpointClearAllInURI": "Ctrl+F9",
+  "cmd_dbgBreakpointToggle": "F9",
+  "cmd_dbgGo": "F5",
+  "cmd_dbgGoSkipDialog": "Ctrl+F5",
+  "cmd_dbgNewSession": "Ctrl+Shift+F5",
+  "cmd_dbgRun": "F7",
+  "cmd_dbgShowCurrentStatement": "Alt+*",
+  "cmd_dbgStepCursor": "Shift+F10",
+  "cmd_dbgStepIn": "F11",
+  "cmd_dbgStepOut": "Shift+F11",
+  "cmd_dbgStepOver": "F10",
+  "cmd_dbgStop": "Shift+F5",
+  "cmd_delete": "Delete",
+  "cmd_deleteWordLeft": "Ctrl+Backspace",
+  "cmd_deleteWordRight": "Ctrl+Delete",
+  "cmd_documentEnd": "Ctrl+End",
+  "cmd_documentHome": "Ctrl+Home",
+  "cmd_editProperties": "Alt+Return",
+  "cmd_editReflow": "Ctrl+Q",
+  "cmd_end": "End",
+  "cmd_endOfWord": "Ctrl+E",
+  "cmd_executeLastMacro": "Ctrl+K _",
+  "cmd_findInFiles": "Ctrl+Shift+F",
+  "cmd_findNext": "F3",
+  "cmd_findNextResult": "Ctrl+Shift+F3",
+  "cmd_findNextSelected": "Ctrl+F3",
+  "cmd_findPrevious": "Shift+F3",
+  "cmd_focusEditor": "Ctrl+Shift+E",
+  "cmd_focusSource": "Ctrl+K Ctrl+S",
+  "cmd_fontZoomIn": "Ctrl++",
+  "cmd_fontZoomOut": "Ctrl+-",
+  "cmd_fontZoomReset": "Ctrl+0",
+  "cmd_goToDefinition": "Ctrl+K Ctrl+G",
+  "cmd_goToQuickBookmark_0": "Ctrl+0",
+  "cmd_goToQuickBookmark_1": "Ctrl+1",
+  "cmd_goToQuickBookmark_2": "Ctrl+2",
+  "cmd_goToQuickBookmark_3": "Ctrl+3",
+  "cmd_goToQuickBookmark_4": "Ctrl+4",
+  "cmd_goToQuickBookmark_5": "Ctrl+5",
+  "cmd_goToQuickBookmark_6": "Ctrl+6",
+  "cmd_goToQuickBookmark_7": "Ctrl+7",
+  "cmd_goToQuickBookmark_8": "Ctrl+8",
+  "cmd_goToQuickBookmark_9": "Ctrl+9",
+  "cmd_gotoLine": "Ctrl+G",
+  "cmd_helpHelp": "F1",
+  "cmd_helpLanguage": "Shift+F1",
+  "cmd_helpLanguageAlternate": "Ctrl+F1",
+  "cmd_historyBack": "Alt+Left",
+  "cmd_historyForward": "Alt+Right",
+  "cmd_home": "Home",
+  "cmd_htmlTagRelocator": "Ctrl+Shift+Z",
+  "cmd_invokeHyperlink": "Ctrl+Shift+G",
+  "cmd_join": "Ctrl+K Ctrl+J",
+  "cmd_jumpToMatchingBrace": "Ctrl+]",
+  "cmd_jumpToNextSection": "F8",
+  "cmd_jumpToPreviousSection": "Shift+F8",
+  "cmd_left": "Left",
+  "cmd_lineNext": "Down",
+  "cmd_linePrevious": "Up",
+  "cmd_lineScrollDown": "Ctrl+Down",
+  "cmd_lineScrollUp": "Ctrl+Up",
+  "cmd_lineTransposeDown": "Alt+Down",
+  "cmd_lineTransposeUp": "Alt+Up",
+  "cmd_new": "Ctrl+N",
+  "cmd_newTab": "Ctrl+T",
+  "cmd_newTemplate": "Ctrl+Shift+N",
+  "cmd_newline": "Return",
+  "cmd_newlineBare": "Ctrl+Return",
+  "cmd_newlineExtra": "Shift+Return",
+  "cmd_newlineSame": "Ctrl+Shift+Return",
+  "cmd_open": "Ctrl+O",
+  "cmd_openProject": "Ctrl+Shift+J",
+  "cmd_pageDown": "Page_Down",
+  "cmd_pageUp": "Page_Up",
+  "cmd_paste": "Ctrl+V",
+  "cmd_pasteAndSelect": "Ctrl+Shift+V",
+  "cmd_publishingDiffCurrentFile": "Ctrl+P D",
+  "cmd_publishingPushCurrentFile": "Ctrl+P P",
+  "cmd_rawKey": "Ctrl+M",
+  "cmd_redo": "Ctrl+Y",
+  "cmd_refactoring_renameVariable": "Ctrl+K Ctrl+M",
+  "cmd_refreshStatus": "Ctrl+K R",
+  "cmd_reloadBrowserPreview": "Ctrl+K Ctrl+R",
+  "cmd_removePrevWordInCaretSet": "Ctrl+Shift+D",
+  "cmd_reopenLastClosedTab": "Ctrl+Shift+T",
+  "cmd_repeatNextCommandBy": "Ctrl+K Ctrl+U",
+  "cmd_replace": "Ctrl+H",
+  "cmd_replaceInFiles": "Ctrl+Shift+H",
+  "cmd_right": "Right",
+  "cmd_save": "Ctrl+S",
+  "cmd_saveAll": "Ctrl+Shift+S",
+  "cmd_scope-combined-toolscmds": "Ctrl+Shift+K",
+  "cmd_scope-openfiles": "Ctrl+<",
+  "cmd_selectAll": "Ctrl+A",
+  "cmd_selectCharNext": "Shift+Right",
+  "cmd_selectCharPrevious": "Shift+Left",
+  "cmd_selectDocumentEnd": "Ctrl+Shift+End",
+  "cmd_selectDocumentHome": "Ctrl+Shift+Home",
+  "cmd_selectEnd": "Shift+End",
+  "cmd_selectHome": "Shift+Home",
+  "cmd_selectLineNext": "Shift+Down",
+  "cmd_selectLinePrevious": "Shift+Up",
+  "cmd_selectPageDown": "Shift+Page_Down",
+  "cmd_selectPageUp": "Shift+Page_Up",
+  "cmd_selectRectCharNext": "Alt+Shift+Right",
+  "cmd_selectRectCharPrevious": "Alt+Shift+Left",
+  "cmd_selectRectEnd": "Alt+Shift+End",
+  "cmd_selectRectHome": "Alt+Shift+Home",
+  "cmd_selectRectLineNext": "Alt+Shift+Down",
+  "cmd_selectRectLinePrevious": "Alt+Shift+Up",
+  "cmd_selectRectPageDown": "Alt+Shift+Page_Down",
+  "cmd_selectRectPageUp": "Alt+Shift+Page_Up",
+  "cmd_selectToMatchingBrace": "Ctrl+Shift+]",
+  "cmd_selectWordLeft": "Ctrl+Shift+Left",
+  "cmd_selectWordRight": "Ctrl+Shift+Right",
+  "cmd_showCommando": "Ctrl+Shift+O",
+  "cmd_showSectionList": "Ctrl+F8",
+  "cmd_startIncrementalSearch": "Ctrl+F",
+  "cmd_startIncrementalSearchBackwards": "Ctrl+Shift+I",
+  "cmd_startMacroMode": "Ctrl+K (",
+  "cmd_stopMacroMode": "Ctrl+K )",
+  "cmd_tabAwarePaste": "Ctrl+Alt+V",
+  "cmd_toggleInteractiveShell": "F12",
+  "cmd_toggleOvertype": "Insert",
+  "cmd_toggleQuickBookmark_0": "Ctrl+Shift+0",
+  "cmd_toggleQuickBookmark_1": "Ctrl+Shift+1",
+  "cmd_toggleQuickBookmark_2": "Ctrl+Shift+2",
+  "cmd_toggleQuickBookmark_3": "Ctrl+Shift+3",
+  "cmd_toggleQuickBookmark_4": "Ctrl+Shift+4",
+  "cmd_toggleQuickBookmark_5": "Ctrl+Shift+5",
+  "cmd_toggleQuickBookmark_6": "Ctrl+Shift+6",
+  "cmd_toggleQuickBookmark_7": "Ctrl+Shift+7",
+  "cmd_toggleQuickBookmark_8": "Ctrl+Shift+8",
+  "cmd_toggleQuickBookmark_9": "Ctrl+Shift+9",
+  "cmd_toolsRunCommand": "Ctrl+R",
+  "cmd_triggerPrecedingCompletion": "Ctrl+J",
+  "cmd_uncomment": "Ctrl+Shift+?",
+  "cmd_undo": "Ctrl+Z",
+  "cmd_viewBottomPane": "Ctrl+Shift+M",
+  "cmd_viewFullScreen": "Ctrl+K F11",
+  "cmd_viewPlaces": "Ctrl+Shift+P",
+  "cmd_viewToolbox": "Ctrl+Shift+L",
+  "cmd_wordLeft": "Ctrl+Left",
+  "cmd_wordRight": "Ctrl+Right"
+ }
+}
