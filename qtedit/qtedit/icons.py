@@ -97,16 +97,17 @@ def css_glyph(content):
     return text
 
 
-def glyph(codepoint, size=16, color=None):
+def glyph(codepoint, size=16, color=None, font_px=None):
     """A QIcon for a single IcoMoon character, e.g. one taken from Komodo's
-    skin CSS via css_glyph()."""
+    skin CSS via css_glyph(). font_px renders at an exact CSS font-size
+    (centred in the size x size pixmap) instead of the 85% default."""
     family = _ensure_font()
     if not family:
         return QIcon()
 
     if color is None:
         color = QGuiApplication.palette().color(QPalette.ColorRole.ButtonText)
-    cache_key = (codepoint, size, color.name(QColor.NameFormat.HexArgb))
+    cache_key = (codepoint, size, color.name(QColor.NameFormat.HexArgb), font_px)
     cached = _icon_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -116,7 +117,7 @@ def glyph(codepoint, size=16, color=None):
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     font = QFont(family)
-    font.setPixelSize(int(size * 0.85))
+    font.setPixelSize(font_px or int(size * 0.85))
     painter.setFont(font)
     painter.setPen(color)
     painter.drawText(QRectF(0, 0, size, size), Qt.AlignmentFlag.AlignCenter, codepoint)

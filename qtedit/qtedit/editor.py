@@ -9,11 +9,12 @@ startStyling/setStyling. This re-lexes the whole document on every edit,
 which is fine for MVP-sized files but not incremental -- a known limitation
 to revisit once this grows beyond a spike.
 """
+import math
 import os
 import re
 
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtGui import QFont, QFontDatabase, QFontMetricsF
 from pygments.lexers import get_lexer_for_filename, get_lexer_by_name
 from pygments.util import ClassNotFound
 from pygments.token import Token
@@ -241,6 +242,14 @@ def language_for_filename(filename):
     return editor_commands.komodo_language_name([lexer.name, *lexer.aliases]) or lexer.name
 
 
+def _gtk_line_height_correction():
+    font = QFont(_editor_font())
+    font.setPointSizeF(EDITOR_FONT_SIZE)
+    metrics = QFontMetricsF(font)
+    gtk = math.ceil(metrics.ascent()) + math.ceil(metrics.descent())
+    return max(0, gtk - round(metrics.ascent() + metrics.descent()))
+
+
 def _editor_font():
     installed = set(QFontDatabase.families())
     for face in EDITOR_FONT_FACES:
@@ -289,8 +298,12 @@ class CodeEditor(ScintillaEdit):
         self.styleSetFont(STYLE_DEFAULT, _editor_font())
         self.styleSetSize(STYLE_DEFAULT, EDITOR_FONT_SIZE)
         # Same split as koScintillaSchemeService: floor above, ceil below.
+        # Komodo's GTK Scintilla also rounds the font's ascent and descent
+        # up separately, while the Qt platform layer rounds their sum
+        # (DejaVu Sans Mono 11pt: 14 + 4 = 18 vs round(17.45) = 17), so the
+        # difference goes below to match Komodo's 20px line pitch.
         self.setExtraAscent(LINE_SPACING // 2)
-        self.setExtraDescent(LINE_SPACING - LINE_SPACING // 2)
+        self.setExtraDescent(LINE_SPACING - LINE_SPACING // 2 + _gtk_line_height_correction())
         self.styleClearAll()
         for _token, style_id, color in TOKEN_STYLES:
             self.styleSetFore(style_id, color)

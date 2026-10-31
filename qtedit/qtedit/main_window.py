@@ -1,6 +1,6 @@
 import os
 
-from PySide6.QtCore import QDir, QPoint, QProcess, QStandardPaths, Qt
+from PySide6.QtCore import QDir, QPoint, QProcess, QSize, QStandardPaths, Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence
 from pyside6_scintilla import Scintilla
 from PySide6.QtWidgets import (
@@ -79,6 +79,18 @@ WORKSPACE_DEFAULTS = {
 }
 
 
+class _TabStripCorner(QWidget):
+    """QTabWidget sizes and bottom-aligns a corner widget by its sizeHint,
+    so report the tab strip's height to span it and centre the buttons."""
+
+    def __init__(self, tab_bar):
+        super().__init__()
+        self._tab_bar = tab_bar
+
+    def sizeHint(self):
+        return QSize(super().sizeHint().width(), self._tab_bar.sizeHint().height())
+
+
 class MainWindow(QMainWindow):
     def __init__(self, project_dir=None):
         super().__init__()
@@ -97,9 +109,13 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().setObjectName("tabbed-view")
         self.tabs.tabBar().setProperty("koTabs", True)
         self.tabs.setDocumentMode(True)
+        # Fusion's document-mode base line is white; the strip's 2px
+        # box-shadow comes from the koTabs QSS border instead.
+        self.tabs.tabBar().setDrawBase(False)
         # Close buttons are Komodo's glyph buttons, see _add_editor_tab.
         self.tabs.setTabsClosable(False)
         self.tabs.currentChanged.connect(self._on_current_tab_changed)
+        self._build_tab_strip_buttons()
 
         self.status_bar = EditorStatusBar()
         self.status_bar.open_requested.connect(self.open_file)
@@ -1599,6 +1615,57 @@ class MainWindow(QMainWindow):
         path = model.filePath(index)
         if os.path.isfile(path):
             self.open_file(path)
+
+    def _build_tab_strip_buttons(self):
+        """scrolltabs.xml#tabs-scrollable: after the tabs come the
+        "tabs-list" menu button (all tabs, current one checked) and the
+        "tabs-new" button observing cmd_newTab; glyphs from the skin."""
+        css = komodo_stylesheet()
+
+        def button(name, tooltip, glyph_rule, size_rule):
+            btn = QToolButton()
+            btn.setObjectName(name)
+            btn.setToolTip(tooltip)
+            btn.setAutoRaise(True)
+            font_px = int(css.value(size_rule, "font-size", "14px").rstrip("px"))
+            size = font_px + 2  # room for glyphs as wide as the em box
+            btn.setIcon(icons.glyph(icons.css_glyph(css.value(glyph_rule, "content")), size,
+                                    QColor(css.value(glyph_rule, "color", "#ffffff")), font_px))
+            btn.setIconSize(QSize(size, size))
+            btn.setFixedSize(size, size)
+            btn.setStyleSheet("QToolButton { border: none; padding: 0; background: transparent; }"
+                              " QToolButton::menu-indicator { image: none; width: 0; }")
+            return btn
+
+        tabs_list = button("tabs-list", "List all tabs",
+                           ".tabs-select-button > .toolbarbutton-icon-box:before",
+                           ".tabs-select-button > .toolbarbutton-icon-box")
+        menu = QMenu(tabs_list)
+        menu.aboutToShow.connect(lambda m=menu: self._fill_tab_list_menu(m))
+        tabs_list.setMenu(menu)
+        tabs_list.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        tabs_new = button("tabs-new", "New Tab", ".newtab-icon:before", ".newtab-icon")
+        tabs_new.clicked.connect(lambda: self._komodo_commands()["cmd_newTab"].run())
+
+        corner = _TabStripCorner(self.tabs.tabBar())
+        layout = QHBoxLayout(corner)
+        # Measured against Komodo 12.10: the glyphs sit 4px from the window
+        # edge with 10px between them.
+        layout.setContentsMargins(0, 0, 2, 0)
+        layout.setSpacing(6)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(tabs_list)
+        layout.addWidget(tabs_new)
+        self.tabs.setCornerWidget(corner, Qt.Corner.TopRightCorner)
+
+    def _fill_tab_list_menu(self, menu):
+        menu.clear()
+        for i in range(self.tabs.count()):
+            action = menu.addAction(self.tabs.tabText(i).replace("&", "&&"))
+            action.setCheckable(True)
+            action.setChecked(i == self.tabs.currentIndex())
+            action.triggered.connect(lambda _c=False, i=i: (
+                self.tabs.setCurrentIndex(i), self._return_focus_to_editor()))
 
     def _add_editor_tab(self, editor, title):
         """A file tab as scrolltabs.xml#file-status-tab draws it: the

@@ -12,8 +12,9 @@ Panels, left to right, as in the XBL binding:
 """
 import os
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtCore import QByteArray, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QAbstractButton,
     QHBoxLayout,
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from qtedit import icons
+from qtedit.random_color import random_color
 from qtedit.skin.css import komodo_stylesheet, load_colors
 
 KOMODO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -53,14 +55,45 @@ def _tinted_svg(path, size, color):
     return QIcon(tinted)
 
 
+# prefs.p.xml fileicons_presets: language -> colour for generated icons.
+FILEICON_PRESET_COLORS = {
+    "text": "#A1A1A1", "unknown": "#A1A1A1", "php": "#A075B2", "ruby": "#EB594C",
+    "javascript": "#37A63A", "node.js": "#4B8850", "html": "#F2A935", "html5": "#F25D5A",
+    "python": "#424B9C", "python3": "#296A9C", "css": "#5C8AB9", "less": "#362397",
+}
+FILEICON_TEMPLATE_SIZE = 14  # sdk/icons.js: size defaults to 14, scale = size / 14
+_file_icon_cache = {}
+
+
 def file_icon(language_name):
-    """Komodo's per-language file icon where one ships, else a plain file
-    glyph."""
-    if language_name:
-        path = os.path.join(FILEICONS_DIR, f"{language_name.lower()}.svg")
-        if os.path.isfile(path):
-            return QIcon(path)
-    return icons.icon("file")
+    """sdk/icons.js fileicon handler: the language's own SVG where Komodo
+    ships one, else template.svg filled with the language's preset colour
+    or, failing that, randomColor({luminosity: 'dark'}, language).
+
+    'dark' is the file-URI branch (tabs, breadcrumbs). Language-URI icons
+    (statusbar language menu) ask for 'light', but Komodo caches the PNG
+    as language + ext + size, so whichever comes first wins; that is the
+    file tab, and the screenshot shows the dark colour in both places."""
+    language = language_name or "Text"  # a buffer without a language
+    cached = _file_icon_cache.get(language)
+    if cached is not None:
+        return cached
+    path = os.path.join(FILEICONS_DIR, f"{language.lower()}.svg")
+    if os.path.isfile(path):
+        icon = QIcon(path)
+    else:
+        color = FILEICON_PRESET_COLORS.get(language.lower()) or random_color(language, luminosity="dark")
+        with open(os.path.join(FILEICONS_DIR, "template.svg"), encoding="utf-8") as f:
+            svg = (f.read().replace("{{size}}", str(FILEICON_TEMPLATE_SIZE))
+                   .replace("{{scale}}", "1").replace("{{color}}", color))
+        pixmap = QPixmap(FILEICON_TEMPLATE_SIZE, FILEICON_TEMPLATE_SIZE)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        QSvgRenderer(QByteArray(svg.encode("utf-8"))).render(painter)
+        painter.end()
+        icon = QIcon(pixmap)
+    _file_icon_cache[language] = icon
+    return icon
 
 
 class Crumb(QAbstractButton):

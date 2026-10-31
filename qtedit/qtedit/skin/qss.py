@@ -28,7 +28,9 @@ def _px(value, rem_px, default=0):
         return default
     number = float(match.group(1))
     if match.group(2) in ("rem", "em"):
-        number *= rem_px
+        # Gecko keeps the fractional rem and snaps the result down:
+        # 1.6rem at 14.67px is 23px, not 1.6 * 15 = 24.
+        return int(number * rem_px + 1e-6)
     return round(number)
 
 
@@ -69,7 +71,9 @@ def build_qss(rem_px, line_px):
     # menus sit in a toolbaritem that carries the bar color.
     menubar_bg = rule("#komodo_main #toolbox_main toolbar toolbaritem")["background"]
     menu = rule("menu")
-    menubar_pad_v = max(0, (_px(menu["min-height"], rem_px) - line_px) // 2)
+    # Centre the text in min-height; an odd remainder goes below.
+    menubar_extra = max(0, _px(menu["min-height"], rem_px) - line_px)
+    menubar_pad_top, menubar_pad_bottom = menubar_extra // 2, menubar_extra - menubar_extra // 2
     popup_box = rule("menupopup > .popup-internal-box")
     popup_item = rule("menuitem")
     popup_active = rule("menupopup menuitem[_moz-menuactive=\"true\"]")
@@ -88,6 +92,11 @@ def build_qss(rem_px, line_px):
     tab_hover = rule(":not(.embedded) > tabs tab:not([selected]):hover")
     tab_shadow_width, tab_shadow_color = _shadow(tabs["box-shadow"])
     file_tab = rule('tab[type="file-tab"]')
+    # The strip's min-height is the tab's outer height (Komodo: 32px, the
+    # selected underline included); QSS min-height is the content box.
+    tab_padding = [int(p[:-2]) for p in _box(tab["padding"], rem_px).split()]
+    tab_content_height = (_px(tab_strip["min-height"], rem_px) - tab_padding[0] - tab_padding[2]
+                          - _px(tab_selected["border-bottom"].split()[0], rem_px))
 
     icon_tab = rule('#komodo_main ko-pane[type="icons"] tab')
 
@@ -150,7 +159,7 @@ QMenuBar {{
 }}
 QMenuBar::item {{
     background: transparent;
-    padding: {menubar_pad_v}px {_px(menu["padding"].split()[1], rem_px)}px;
+    padding: {menubar_pad_top}px {_px(menu["padding"].split()[1], rem_px)}px {menubar_pad_bottom}px;
 }}
 QMenuBar::item:selected, QMenuBar::item:pressed {{
     background: {popup_active["background"]};
@@ -187,7 +196,7 @@ QTabBar[koTabs="true"]::tab {{
     background: transparent;
     color: {tab["color"]};
     padding: {_box(tab["padding"], rem_px)};
-    min-height: {_px(tab_strip["min-height"], rem_px) - 2 * tab_shadow_width}px;
+    min-height: {tab_content_height}px;
     max-width: {file_tab["max-width"]};
     border: 0;
     border-bottom: {tab_unselected["border-bottom"]};
@@ -405,5 +414,5 @@ def apply(app):
     app.setPalette(build_palette())
     rem_px = app.font().pixelSize()
     if rem_px <= 0:
-        rem_px = round(app.font().pointSizeF() * app.primaryScreen().logicalDotsPerInch() / 72)
+        rem_px = app.font().pointSizeF() * app.primaryScreen().logicalDotsPerInch() / 72
     app.setStyleSheet(build_qss(rem_px, QFontMetrics(app.font()).height()))
