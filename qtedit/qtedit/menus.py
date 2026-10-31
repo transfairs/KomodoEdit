@@ -110,6 +110,7 @@ class MenuBuilder:
             else:
                 menu.addAction(self._build_action(child, menu))
         menu.aboutToShow.connect(lambda m=menu: self._refresh(m))
+        menu.aboutToHide.connect(lambda m=menu: self._reenable(m))
         _drop_redundant_separators(menu)
         return menu
 
@@ -145,6 +146,17 @@ class MenuBuilder:
                 action.setEnabled(command.enabled())
             if command.checked is not None:
                 action.setChecked(command.checked())
+
+
+    def _reenable(self, menu):
+        """Enabled state is for the open menu only. As in Komodo, where
+        keybindings skip the is-enabled test and each command checks for
+        itself, a shortcut must keep working after its item was shown
+        greyed out (Ctrl+/ after opening Code in a comment-less buffer)."""
+        for action in menu.actions():
+            command = self._commands.get(action.data())
+            if command is not None and command.enabled is not None:
+                action.setEnabled(True)
 
 
 def _drop_redundant_separators(menu):

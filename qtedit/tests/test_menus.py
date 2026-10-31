@@ -66,3 +66,32 @@ class SnapshotTestCase(unittest.TestCase):
             labels,
             ["File", "Edit", "Code", "Navigation", "View", "Project", "Tools", "Help", "Test"],
         )
+
+
+class EnabledStateTestCase(unittest.TestCase):
+    NODES = [{
+        "type": "menu", "id": "menu_code", "label": "Code", "accesskey": "C",
+        "children": [
+            {"type": "menuitem", "id": "a", "label": "Comment", "command": "cmd_comment", "shortcut": "Ctrl+/"},
+        ],
+    }]
+
+    def setUp(self):
+        self.window = QMainWindow()
+        self.ran = []
+        builder = MenuBuilder(self.window, {
+            "cmd_comment": Command(lambda: self.ran.append(1), enabled=lambda: False),
+        })
+        builder.build(self.window.menuBar(), self.NODES)
+        self.menu = self.window.menuBar().actions()[0].menu()
+        self.action = builder.actions["cmd_comment"]
+
+    def tearDown(self):
+        self.window.deleteLater()
+        _app.processEvents()
+
+    def test_shortcut_works_again_after_menu_closes(self):
+        self.menu.aboutToShow.emit()
+        self.assertFalse(self.action.isEnabled())
+        self.menu.aboutToHide.emit()
+        self.assertTrue(self.action.isEnabled())

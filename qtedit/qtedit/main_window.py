@@ -40,6 +40,7 @@ from qtedit.find_bar import SEARCH_FILES, SEARCH_PROJECT, FindFrame
 from qtedit.incremental_search import IncrementalSearchBar
 from qtedit.menus import Command, MenuBuilder, add_window_shortcut, load_bindings
 from qtedit import mru
+from qtedit.history import EditorHistory
 from qtedit import find_in_files
 from qtedit.prefs import get_global_prefs
 from qtedit.prefs_dialog import PreferencesDialog
@@ -85,7 +86,9 @@ class MainWindow(QMainWindow):
         if os.path.isfile(APP_ICON_PATH):
             self.setWindowIcon(QIcon(APP_ICON_PATH))
 
+        self._history = EditorHistory(self._open_history_location, self)
         self.tabs = QTabWidget()
+        self._history.message.connect(lambda msg: self.status_bar.showMessage(msg, 5000))
         # Named after Komodo's XUL id; koTabs opts into skin/qss.py's
         # Komodo tab rules (shared with the pane tab strips).
         self.tabs.tabBar().setObjectName("tabbed-view")
@@ -291,6 +294,8 @@ class MainWindow(QMainWindow):
             "cmd_saveAs": Command(self.save_current_as),
             "cmd_saveAll": Command(self._save_all),
             "cmd_quit": Command(self.close),
+            "cmd_revert": Command(self._revert, enabled=lambda: (
+                editor() is not None and bool(editor().filepath) and bool(editor().modify()))),
             "cmd_reopenLastClosedTab": Command(self._reopen_last_closed_tab),
             # Edit
             "cmd_undo": Command(self._editor_call("undo")),
@@ -336,6 +341,10 @@ class MainWindow(QMainWindow):
             # Navigation
             "cmd_gotoLine": Command(self._goto_line),
             "cmd_jumpToMatchingBrace": Command(self._jump_to_matching_brace),
+            "cmd_historyBack": Command(lambda: self._history.go_back(editor()),
+                                       enabled=self._history.can_go_back),
+            "cmd_historyForward": Command(lambda: self._history.go_forward(editor()),
+                                          enabled=self._history.can_go_forward),
             "cmd_editCenterVertically": Command(self._editor_call("verticalCentreCaret")),
             "cmd_editMoveCurrentLineToTop": Command(
                 self._on_editor(editor_commands.move_current_line_to_top)),
@@ -526,6 +535,19 @@ class MainWindow(QMainWindow):
         self._closed_tabs.fill_menu(menu, self._reopen_closed_tab,
                                     load_bindings().get("cmd_reopenLastClosedTab"))
 
+    def _open_history_location(self, loc):
+        """history.js view_and_line_from_loc: the buffer's tab, reopening
+        the file if it was closed."""
+        for i in range(self.tabs.count()):
+            editor = self.tabs.widget(i)
+            if editor is loc.key or (editor.filepath and editor.filepath == loc.key):
+                self.tabs.setCurrentIndex(i)
+                return editor
+        if isinstance(loc.key, str) and os.path.isfile(loc.key):
+            self.open_file(loc.key)
+            return self.tabs.currentWidget()
+        return None
+
     def _reopen_closed_tab(self, path):
         self._closed_tabs.discard(path)
         self.open_file(path)
@@ -580,6 +602,7 @@ class MainWindow(QMainWindow):
         self._prefs_dialog.activateWindow()
 
     def _on_current_tab_changed(self, _index):
+        self._history.view_changed(self.tabs.currentWidget())
         self._find_bar.set_editor(self.tabs.currentWidget())
         self._isearch_bar.set_editor(self.tabs.currentWidget())
         self.status_bar.set_editor(self.tabs.currentWidget())
@@ -1028,6 +1051,7 @@ class MainWindow(QMainWindow):
                 try:
                     with open(editor.filepath, "r", encoding="utf-8", errors="replace") as f:
                         editor.setText(f.read())
+                    editor.setSavePoint()  # matches disk again
                 except OSError:
                     continue
         self.status_bar.showMessage(
@@ -1381,6 +1405,8 @@ class MainWindow(QMainWindow):
 
         editor = CodeEditor(self)
         editor.setText(item.value)
+        editor.emptyUndoBuffer()
+        editor.setSavePoint()
         editor.toolbox_item = item
         index = self._add_editor_tab(editor, f"Snippet: {item.name}")
         self.tabs.setTabToolTip(index, item.path)
@@ -1565,6 +1591,9 @@ class MainWindow(QMainWindow):
         """A file tab as scrolltabs.xml#file-status-tab draws it: the
         language's file icon, the name, and a `.tab-close-button` glyph."""
         index = self.tabs.addTab(editor, title)
+        editor.tab_title = title
+        editor.savePointChanged.connect(lambda _dirty, ed=editor: self._update_tab_title(ed))
+        self._history.watch(editor)
         self._update_tab_icon(editor)
         css = komodo_stylesheet()
         close = QToolButton()
@@ -1578,6 +1607,43 @@ class MainWindow(QMainWindow):
         close.clicked.connect(lambda _c=False, e=editor: self._close_tab(self.tabs.indexOf(e)))
         self.tabs.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, close)
         return index
+
+    def _update_tab_title(self, editor):
+        """scrolltabs.xml: a separate "*" label shows unless the tab is
+        clean (views-tabbed.xml updateDirtyStatus)."""
+        index = self.tabs.indexOf(editor)
+        if index >= 0:
+            self.tabs.setTabText(index, editor.tab_title + ("*" if editor.modify() else ""))
+
+    def _revert(self):
+        """views-editor.p.xml revert(): ask, then koDocument.revert(),
+        which reloads as one undoable edit keeping caret and scroll."""
+        editor = self.tabs.currentWidget()
+        if editor is None or not editor.filepath:
+            return
+        answer = QMessageBox.question(
+            self, "Komodo",
+            f"Do you wish to revert to the last saved version of '{os.path.basename(editor.filepath)}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            with open(editor.filepath, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError as exc:
+            QMessageBox.warning(self, "Revert", f"Could not read {editor.filepath}:\n{exc}")
+            return
+        pos, anchor = editor.currentPos(), editor.anchor()
+        first_visible, x_offset = editor.firstVisibleLine(), editor.xOffset()
+        editor.beginUndoAction()
+        editor.setText(text)
+        editor.endUndoAction()
+        length = editor.textLength()
+        editor.setSel(min(anchor, length), min(pos, length))
+        editor.setFirstVisibleLine(first_visible)
+        editor.setXOffset(x_offset)
+        editor.setSavePoint()
 
     def _update_tab_icon(self, editor):
         self.tabs.setTabIcon(self.tabs.indexOf(editor), file_icon(editor.language_name()))
@@ -1610,6 +1676,10 @@ class MainWindow(QMainWindow):
 
         editor = CodeEditor(self)
         editor.setText(text)
+        # koDocument._loadfile: loading isn't an undoable edit, and the
+        # buffer starts clean.
+        editor.emptyUndoBuffer()
+        editor.setSavePoint()
         editor.set_lexer_for_filename(path, text)
         editor.filepath = path
         abspath = os.path.abspath(path)
@@ -1629,6 +1699,7 @@ class MainWindow(QMainWindow):
             new_value = editor.current_text()
             toolbox_model.update_item(item.path, item.name, item.type, new_value, item.cwd)
             item.value = new_value
+            editor.setSavePoint()
             return
         path = editor.filepath
         if not path:
@@ -1645,7 +1716,8 @@ class MainWindow(QMainWindow):
             self._write(editor, path)
             editor.filepath = path
             editor.set_lexer_for_filename(path, editor.current_text())
-            self.tabs.setTabText(self.tabs.indexOf(editor), os.path.basename(path))
+            editor.tab_title = os.path.basename(path)
+            self._update_tab_title(editor)
             self.tabs.setTabToolTip(self.tabs.indexOf(editor), path)
             self._update_tab_icon(editor)
             self.status_bar.refresh()
@@ -1656,11 +1728,14 @@ class MainWindow(QMainWindow):
                 f.write(editor.current_text())
         except OSError as exc:
             QMessageBox.warning(self, "Save File", f"Could not save {path}:\n{exc}")
+            return
+        editor.setSavePoint()
 
     def _close_tab(self, index):
         if index < 0:
             return
         widget = self.tabs.widget(index)
+        self._history.view_closing(widget)
         if widget.filepath:
             # views-editor.p.xml closeUnconditionally: files enter the MRU
             # when their view closes.
