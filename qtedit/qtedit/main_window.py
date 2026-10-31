@@ -1,7 +1,7 @@
 import os
 
-from PySide6.QtCore import QDir, QPoint, QProcess, QSize, QStandardPaths, Qt
-from PySide6.QtGui import QAction, QColor, QIcon, QKeySequence
+from PySide6.QtCore import QDir, QPoint, QProcess, QSize, QStandardPaths, Qt, QUrl
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon, QKeySequence, QPixmap
 from pyside6_scintilla import Scintilla
 from PySide6.QtWidgets import (
     QComboBox,
@@ -48,6 +48,7 @@ from qtedit.projects import model as project_model
 from qtedit.projects.tree_model import IS_FILE_ROLE, NODE_ROLE, build_project_model
 from qtedit import session
 from qtedit.skin.css import komodo_stylesheet
+from qtedit.quickstart import QuickStartView
 from qtedit.save_dialog import SaveModifiedDialog
 from qtedit.statusbar import EditorStatusBar, file_icon
 from qtedit import vcs
@@ -71,6 +72,8 @@ APP_ICON_PATH = os.path.join(KOMODO_ROOT, "build", "release", "main", "komodo128
 # the xulstore widths. Defaults match a Komodo 12 classic-mode profile with
 # all panes and the toolbar row collapsed; sizes are komodo.p.xul's.
 WORKSPACE_PREF = "ui.workspace"
+# workspace.p.js multiWindowWorkspacePrefName; qtedit has one window.
+OPEN_FILES_PREF = "windowWorkspace"
 WORKSPACE_DEFAULTS = {
     "workspace_left_area": {"collapsed": True, "size": 200},
     "workspace_right_area": {"collapsed": True, "size": 200},
@@ -152,7 +155,8 @@ class MainWindow(QMainWindow):
         self._build_codeintel()
         self._restore_workspace()
 
-        self.new_file()
+        if not self._restore_open_files():
+            self.open_quickstart()
 
     def _build_workspace(self):
         """komodo.p.xul's #komodo-hbox: left pane | editor column | right
@@ -219,6 +223,11 @@ class MainWindow(QMainWindow):
                 )
         get_global_prefs().set(WORKSPACE_PREF, state)
 
+    def _editor(self):
+        """The current tab's editor, or None on the Quick Start tab."""
+        widget = self.tabs.currentWidget()
+        return widget if isinstance(widget, CodeEditor) else None
+
     def _open_file_paths(self):
         return [
             self.tabs.widget(i).filepath
@@ -247,7 +256,7 @@ class MainWindow(QMainWindow):
     def _editor_call(self, method_name, *args):
         """Command body that forwards to the current editor."""
         def run():
-            editor = self.tabs.currentWidget()
+            editor = self._editor()
             if editor is not None:
                 getattr(editor, method_name)(*args)
         return run
@@ -255,23 +264,23 @@ class MainWindow(QMainWindow):
     def _on_editor(self, func, *args):
         """Command body calling func(current editor, *args)."""
         def run():
-            editor = self.tabs.currentWidget()
+            editor = self._editor()
             if editor is not None:
                 func(editor, *args)
         return run
 
     def _comment_delimiters(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         return editor_commands.comment_delimiters(editor.language_names()) if editor is not None else None
 
     def _comment(self, commenting):
         info = self._comment_delimiters()
         if info is not None:
             (editor_commands.comment if commenting else editor_commands.uncomment)(
-                self.tabs.currentWidget(), info)
+                self._editor(), info)
 
     def _convert(self, converter):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         try:
@@ -283,14 +292,14 @@ class MainWindow(QMainWindow):
         return get_global_prefs().get("tabWidth") or 8
 
     def _bookmark_goto(self, func, message):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is not None and not func(editor):
             self.status_bar.showMessage(message, 5000)
 
     def _komodo_commands(self):
         if getattr(self, "_commands", None) is not None:
             return self._commands
-        editor = self.tabs.currentWidget
+        editor = self._editor
         has_project = lambda: self._project is not None  # noqa: E731
         has_editor = lambda: editor() is not None  # noqa: E731
         can_fold = lambda: editor() is not None and editor().marginWidthN(FOLD_MARGIN) > 0  # noqa: E731
@@ -304,7 +313,7 @@ class MainWindow(QMainWindow):
         self._commands = {
             # File
             "cmd_new": Command(self.new_file),
-            "cmd_newTab": Command(self.new_file),
+            "cmd_newTab": Command(self.open_quickstart),
             "cmd_open": Command(self.open_file_dialog),
             "cmd_bufferClose": Command(lambda: self._close_tab(self.tabs.currentIndex())),
             "cmd_bufferCloseOthers": Command(self._close_other_tabs),
@@ -514,7 +523,7 @@ class MainWindow(QMainWindow):
             menu.removeAction(actions[-1])
 
     def _fill_view_as_language_menu(self, menu):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         current = editor.language_name() if editor is not None else None
         for name in UDL_LANGUAGES:
             action = menu.addAction(name)
@@ -523,7 +532,7 @@ class MainWindow(QMainWindow):
             action.triggered.connect(lambda _c=False, n=name: self._set_language(n))
 
     def _set_language(self, name):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         editor.set_lexer_by_name(name)
@@ -531,7 +540,7 @@ class MainWindow(QMainWindow):
         self.status_bar.refresh()
 
     def _close_other_tabs(self):
-        current = self.tabs.currentWidget()
+        current = self._editor()
         others = [self.tabs.widget(i) for i in range(self.tabs.count())
                   if self.tabs.widget(i) is not current]
         if self._offer_to_save(others):
@@ -570,7 +579,7 @@ class MainWindow(QMainWindow):
                 return editor
         if isinstance(loc.key, str) and os.path.isfile(loc.key):
             self.open_file(loc.key)
-            return self.tabs.currentWidget()
+            return self._editor()
         return None
 
     def _reopen_closed_tab(self, path):
@@ -592,7 +601,7 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(current)
 
     def _goto_line(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         line, ok = QInputDialog.getInt(
@@ -603,7 +612,7 @@ class MainWindow(QMainWindow):
             editor.verticalCentreCaret()
 
     def _jump_to_matching_brace(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         pos = editor.currentPos()
@@ -627,13 +636,16 @@ class MainWindow(QMainWindow):
         self._prefs_dialog.activateWindow()
 
     def _on_current_tab_changed(self, _index):
-        self._history.view_changed(self.tabs.currentWidget())
-        self._find_bar.set_editor(self.tabs.currentWidget())
-        self._isearch_bar.set_editor(self.tabs.currentWidget())
-        self.status_bar.set_editor(self.tabs.currentWidget())
+        # Komodo's classic statusbar belongs to editor views; the Quick
+        # Start view has none.
+        self.status_bar.setVisible(self._editor() is not None)
+        self._history.view_changed(self._editor())
+        self._find_bar.set_editor(self._editor())
+        self._isearch_bar.set_editor(self._editor())
+        self.status_bar.set_editor(self._editor())
 
     def start_incremental_search(self):
-        self._isearch_bar.start(self.tabs.currentWidget())
+        self._isearch_bar.start(self._editor())
 
     def _isearch_to_find_frame(self, pattern):
         """findController.convertToDialog(): carry the pattern over."""
@@ -642,11 +654,11 @@ class MainWindow(QMainWindow):
         self._find_bar.set_pattern(pattern)
 
     def open_find_bar(self, replace=False, search_in=None):
-        self._find_bar.set_editor(self.tabs.currentWidget())
+        self._find_bar.set_editor(self._editor())
         self._find_bar.show_bar(replace=replace, search_in=search_in)
 
     def _return_focus_to_editor(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is not None:
             # ScintillaEdit.setFocus(bool) shadows QWidget.setFocus(); see
             # the same note in _insert_completion.
@@ -767,7 +779,7 @@ class MainWindow(QMainWindow):
         self.bottom_pane.add_widget("breakpoints-tabpanel", "Debug", panel, "bug", visible=False)
 
     def toggle_breakpoint(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         editor.toggle_breakpoint(editor.lineFromPosition(editor.currentPos()))
@@ -787,7 +799,7 @@ class MainWindow(QMainWindow):
         breakpoint_store.save_breakpoints(self._breakpoints_path, abspath, breakpoints)
 
     def edit_breakpoint_condition(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         line = editor.lineFromPosition(editor.currentPos())
@@ -800,7 +812,7 @@ class MainWindow(QMainWindow):
             editor.set_breakpoint_condition(line, dialog.condition(), dialog.ignore_count())
 
     def start_debugging(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         path = editor.filepath if editor is not None else None
         session_cls = None
         if path is not None:
@@ -936,7 +948,7 @@ class MainWindow(QMainWindow):
         if stack:
             top = stack[0]
             self.open_file(top["filename"])
-            editor = self.tabs.currentWidget()
+            editor = self._editor()
             if editor is not None:
                 editor.set_current_line(top["line"] - 1)  # bdb is 1-based
                 self._debug_current_editors[path] = editor
@@ -1110,7 +1122,7 @@ class MainWindow(QMainWindow):
         if hit is None:
             return
         self.open_file(hit.path)
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         line = hit.line_no - 1
@@ -1321,7 +1333,7 @@ class MainWindow(QMainWindow):
             self._run_toolbox_command(item)
 
     def _insert_snippet(self, item):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         pos = editor.currentPos()
@@ -1472,7 +1484,7 @@ class MainWindow(QMainWindow):
 
 
     def trigger_autocomplete(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None:
             return
         path = editor.filepath
@@ -1568,6 +1580,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         self._save_workspace()
+        self._save_open_files()
         for path in reversed(self._open_file_paths()):
             mru.add(get_global_prefs(), mru.FILE_LIST, os.path.abspath(path))
         if self._project is not None:
@@ -1581,20 +1594,21 @@ class MainWindow(QMainWindow):
 
     def _restore_session(self):
         open_files, active_file = session.load_session(self._session_path, self._project.path)
-        # Remember the blank "untitled" placeholder tab (if that's all that's
-        # open) so it can be dropped *after* the real files are open --
-        # closing it first would trip _close_tab's "keep at least one tab"
-        # safety net and just recreate another blank tab in its place.
-        placeholder_index = None
+        # Remember a blank "untitled" tab (if that's all that's open) so it
+        # can be dropped *after* the real files are open -- closing it first
+        # would bring up the Quick Start tab in its place. Kept as a widget,
+        # not an index: opening files shifts tabs (and a Quick Start tab
+        # closes itself when the first file opens).
+        placeholder = None
         if open_files and self.tabs.count() == 1:
-            placeholder = self.tabs.widget(0)
-            if placeholder.filepath is None and not placeholder.current_text():
-                placeholder_index = 0
+            widget = self.tabs.widget(0)
+            if isinstance(widget, CodeEditor) and widget.filepath is None and not widget.current_text():
+                placeholder = widget
         for path in open_files:
             if os.path.isfile(path):
                 self.open_file(path)
-        if placeholder_index is not None and self.tabs.count() > 1:
-            self._close_tab(placeholder_index)
+        if placeholder is not None and self.tabs.indexOf(placeholder) >= 0 and self.tabs.count() > 1:
+            self._close_tab(self.tabs.indexOf(placeholder))
         if active_file:
             for i in range(self.tabs.count()):
                 if self.tabs.widget(i).filepath == active_file:
@@ -1607,7 +1621,7 @@ class MainWindow(QMainWindow):
             for i in range(self.tabs.count())
             if self.tabs.widget(i).filepath
         ]
-        current = self.tabs.currentWidget()
+        current = self._editor()
         active_file = current.filepath if current is not None else None
         session.save_session(self._session_path, self._project.path, open_files, active_file)
 
@@ -1670,11 +1684,20 @@ class MainWindow(QMainWindow):
     def _add_editor_tab(self, editor, title):
         """A file tab as scrolltabs.xml#file-status-tab draws it: the
         language's file icon, the name, and a `.tab-close-button` glyph."""
+        previous = self.tabs.currentWidget()
         index = self.tabs.addTab(editor, title)
         editor.tab_title = title
         editor.savePointChanged.connect(lambda _dirty, ed=editor: self._update_tab_title(ed))
         self._history.watch(editor)
         self._update_tab_icon(editor)
+        self._add_tab_close_button(editor, index)
+        # views.p.xml: a view opened from the Quick Start tab replaces it.
+        if isinstance(previous, QuickStartView):
+            self._close_tab(self.tabs.indexOf(previous))
+            index = self.tabs.indexOf(editor)
+        return index
+
+    def _add_tab_close_button(self, widget, index):
         css = komodo_stylesheet()
         close = QToolButton()
         close.setObjectName("tab-close-button")
@@ -1684,9 +1707,68 @@ class MainWindow(QMainWindow):
             QColor(css.value(".tab-close-button:before", "color")),
         ))
         close.setToolTip("Close")
-        close.clicked.connect(lambda _c=False, e=editor: self._close_tab(self.tabs.indexOf(e)))
+        close.clicked.connect(lambda _c=False, w=widget: self._close_tab(self.tabs.indexOf(w)))
         self.tabs.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, close)
-        return index
+
+    def open_quickstart(self):
+        """cmd_newTab (ko.open.quickStart): the "New Tab" view."""
+        for i in range(self.tabs.count()):
+            if isinstance(self.tabs.widget(i), QuickStartView):
+                self.tabs.setCurrentIndex(i)
+                return
+        view = QuickStartView(self._fill_quickstart_menu, self)
+        view.run_command.connect(lambda command: self._komodo_commands()[command].run())
+        view.open_url.connect(lambda url: QDesktopServices.openUrl(QUrl(url)))
+        # No icon, but the tab keeps the 16px icon slot file tabs have.
+        blank = QPixmap(16, 16)
+        blank.fill(Qt.GlobalColor.transparent)
+        index = self.tabs.addTab(view, QIcon(blank), QuickStartView.tab_title)
+        self._add_tab_close_button(view, index)
+        self.tabs.setCurrentIndex(index)
+
+    def _fill_quickstart_menu(self, kind, menu):
+        # quickstart.xml: updateMRUMenuIfNecessary(kind, 0, ..., force)
+        if kind == "mru_files":
+            self._fill_recent_files_menu(menu)
+        else:
+            mru.fill_menu(menu, get_global_prefs(), mru.PROJECT_LIST, self.open_project_path)
+
+    def _save_open_files(self):
+        """ko.workspace: the open files with caret and scroll position."""
+        files = []
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if isinstance(widget, CodeEditor) and widget.filepath:
+                files.append({"path": os.path.abspath(widget.filepath), "pos": widget.currentPos(),
+                              "first_line": widget.firstVisibleLine()})
+        current = self._editor()
+        get_global_prefs().set(OPEN_FILES_PREF, {
+            "files": files,
+            "current": os.path.abspath(current.filepath) if current is not None and current.filepath else None,
+        })
+
+    def _restore_open_files(self):
+        """workspace.p.js restoreWorkspace: automatic unless the user chose
+        "No" for good. Returns whether any file was reopened."""
+        prefs = get_global_prefs()
+        if prefs.get("donotask_restore_workspace") and prefs.get("donotask_action_restore_workspace") == "No":
+            return False
+        state = prefs.get(OPEN_FILES_PREF) or {}
+        opened = False
+        for entry in state.get("files", []):
+            if not os.path.isfile(entry["path"]):
+                continue
+            self.open_file(entry["path"])
+            editor = self._editor()
+            if editor is not None and editor.filepath == entry["path"]:
+                editor.gotoPos(min(entry.get("pos", 0), editor.length()))
+                editor.setFirstVisibleLine(entry.get("first_line", 0))
+                opened = True
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if isinstance(widget, CodeEditor) and widget.filepath == state.get("current"):
+                self.tabs.setCurrentIndex(i)
+        return opened
 
     def _update_tab_title(self, editor):
         """scrolltabs.xml: a separate "*" label shows unless the tab is
@@ -1698,7 +1780,7 @@ class MainWindow(QMainWindow):
     def _revert(self):
         """views-editor.p.xml revert(): ask, then koDocument.revert(),
         which reloads as one undoable edit keeping caret and scroll."""
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is None or not editor.filepath:
             return
         answer = QMessageBox.question(
@@ -1771,12 +1853,12 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(index)
 
     def save_current(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is not None:
             self._save_editor(editor)
 
     def save_current_as(self):
-        editor = self.tabs.currentWidget()
+        editor = self._editor()
         if editor is not None:
             self._save_editor_as(editor)
 
@@ -1864,5 +1946,5 @@ class MainWindow(QMainWindow):
         self.tabs.removeTab(index)
         widget.deleteLater()
         if self.tabs.count() == 0:
-            self.new_file()
+            self.open_quickstart()  # uilayout.updateViewDeck
         return True

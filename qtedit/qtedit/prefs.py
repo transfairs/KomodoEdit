@@ -25,6 +25,9 @@ DEFAULT_PREFS = {
     "mruFileSize": 30,
     "mruProjectSize": 15,
     "editAutoWrapColumn": 80,
+    # Restore open files at startup unless the user said "No" for good.
+    "donotask_restore_workspace": True,
+    "donotask_action_restore_workspace": "Yes",
     # Prefs > Workspace "Restore Tab History"; off in Komodo too.
     "workspace_restory_history": False,
 }

@@ -12,7 +12,7 @@ Panels, left to right, as in the XBL binding:
 """
 import os
 
-from PySide6.QtCore import QByteArray, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QByteArray, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
@@ -94,6 +94,85 @@ def file_icon(language_name):
         icon = QIcon(pixmap)
     _file_icon_cache[language] = icon
     return icon
+
+
+class StatusbarMenuButton(QToolButton):
+    """A statusbar toolbarbutton type="menu" in its statusbarpanel, drawn
+    as Gecko lays it out: panel padding (toolkit default 0 4px), button
+    padding, icon + 4px margin-right, the 0.6-opacity label, then the
+    skin's `dropmarker:before` glyph (white, 14px) 6px after the label, or
+    at the right edge when the panel's min-width is wider than that."""
+
+    PANEL_PADDING = 4
+    # Room for the dropmarker after the label (measured against Komodo
+    # 12.10: 7px from the label's ink to the glyph's 4px of ink).
+    MARKER_SPACE = 6
+    ICON_GAP = 4  # .toolbarbutton-icon margin-right
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        css = komodo_stylesheet()
+        self._marker = icons.glyph(icons.css_glyph(css.value("dropmarker:before", "content")), 16,
+                                   QColor(css.value("dropmarker:before", "color")),
+                                   int(css.value("dropmarker", "font-size", "14px").rstrip("px")))
+        self._padding = int(css.value('[anonid="breadcrumbBar"] .breadcrumb .toolbarbutton-text',
+                                      "padding", "2px").rstrip("px"))
+        self._menu = None
+        self.clicked.connect(self._popup)
+
+    def _content_width(self):
+        width = self.fontMetrics().horizontalAdvance(self.text())
+        if not self.icon().isNull():
+            width += self.iconSize().width() + self.ICON_GAP
+        return width
+
+    def sizeHint(self):
+        width = 2 * (self.PANEL_PADDING + self._padding) + self._content_width() + self.MARKER_SPACE
+        return QSize(width, super().sizeHint().height())
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        box = self.rect().adjusted(self.PANEL_PADDING, 0, -self.PANEL_PADDING, 0)
+        if self.underMouse():
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(self.palette().button())
+            painter.drawRoundedRect(box, self._padding, self._padding)
+        x = box.left() + self._padding
+        if not self.icon().isNull():
+            size = self.iconSize()
+            self.icon().paint(painter, QRect(x, (self.height() - size.height()) // 2,
+                                             size.width(), size.height()))
+            x += size.width() + self.ICON_GAP
+        painter.setPen(self.palette().buttonText().color())
+        painter.drawText(QRect(x, 0, box.right() - x, self.height()), Qt.AlignmentFlag.AlignVCenter,
+                         self.text())
+        # The glyph's ink is columns 6-9 of its 16px box; Komodo's ends 2px
+        # before the button padding.
+        marker_x = box.right() + 1 - self._padding - self.MARKER_SPACE - 2
+        self._marker.paint(painter, QRect(marker_x, (self.height() - 16) // 2, 16, 16))
+        painter.end()
+
+    # QToolButton.setMenu() makes sizeHint reserve room for Qt's own menu
+    # indicator, so the menu is kept and shown here instead.
+    def setMenu(self, menu):
+        self._menu = menu
+
+    def menu(self):
+        return self._menu
+
+    def setPopupMode(self, _mode):
+        pass
+
+    def _popup(self):
+        """position="before_end": above the button, right edges aligned."""
+        if self._menu is None:
+            return
+        hint = self._menu.sizeHint()
+        self._menu.exec(self.mapToGlobal(QPoint(self.width() - hint.width(), -hint.height())))
 
 
 class Crumb(QAbstractButton):
@@ -282,8 +361,12 @@ class Breadcrumbs(QWidget):
 class EditorStatusBar(QStatusBar):
     open_requested = Signal(str)
 
+    # Measured against Komodo 12.10: the last panel ends 3px before the edge.
+    RIGHT_MARGIN = 5
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setContentsMargins(0, 0, self.RIGHT_MARGIN, 0)
         self.setSizeGripEnabled(False)
         self._editor = None
 
@@ -310,21 +393,35 @@ class EditorStatusBar(QStatusBar):
             pos_info.setMinimumWidth(int(min_width.rstrip("px")))
         self.addPermanentWidget(pos_info)
 
-        self._encoding_button = QToolButton()
+        # Both panels: min-width 5rem (views-editor.p.xml).
+        # Gecko keeps the fractional rem (11pt = 14.67px) and floors: 73px.
+        rem = self.font().pointSizeF() * self.logicalDpiY() / 72
+        panel_min_width = int(5 * rem + 1e-6)
+        self._encoding_button = StatusbarMenuButton()
+        # Measured against Komodo: the 5rem include the panel padding.
+        self._encoding_button.setMinimumWidth(panel_min_width)
         self._encoding_button.setObjectName("statusbar-encoding-label")
         self._encoding_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._encoding_button.setMenu(QMenu(self._encoding_button))
         self._encoding_button.menu().addAction("UTF-8").setEnabled(False)
-        self.addPermanentWidget(self._encoding_button)
 
-        self._language_button = QToolButton()
+        self._language_button = StatusbarMenuButton()
         self._language_button.setObjectName("statusbar-language-menu")
         self._language_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self._language_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._language_button.setMenu(QMenu(self._language_button))
         self.language_menu_filler = None
         self._language_button.menu().aboutToShow.connect(self._fill_language_menu)
-        self.addPermanentWidget(self._language_button)
+        # XUL statusbarpanels sit edge to edge, but QStatusBar spaces its
+        # items (and resets any spacing set on its layout), so the two
+        # menu panels share one container.
+        menus = QWidget()
+        menus_layout = QHBoxLayout(menus)
+        menus_layout.setContentsMargins(0, 0, 0, 0)
+        menus_layout.setSpacing(0)
+        menus_layout.addWidget(self._encoding_button)
+        menus_layout.addWidget(self._language_button)
+        self.addPermanentWidget(menus)
 
     def _fill_language_menu(self):
         """statusbar-filetype-menu: the same list as View > View as Language."""
