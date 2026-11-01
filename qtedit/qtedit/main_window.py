@@ -49,6 +49,7 @@ from qtedit.projects.tree_model import IS_FILE_ROLE, NODE_ROLE, build_project_mo
 from qtedit import session
 from qtedit.skin.css import komodo_stylesheet
 from qtedit.quickstart import QuickStartView
+from qtedit.tabbar import CLOSE_SIZE, KomodoTabBar
 from qtedit.save_dialog import SaveModifiedDialog
 from qtedit.statusbar import EditorStatusBar, file_icon
 from qtedit import vcs
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
             self._open_history_location, default_db_path(),
             restore=get_global_prefs().get(RESTORE_PREF), parent=self)
         self.tabs = QTabWidget()
+        self.tabs.setTabBar(KomodoTabBar())
         self._history.message.connect(lambda msg: self.status_bar.showMessage(msg, 5000))
         # Named after Komodo's XUL id; koTabs opts into skin/qss.py's
         # Komodo tab rules (shared with the pane tab strips).
@@ -1698,17 +1700,17 @@ class MainWindow(QMainWindow):
         return index
 
     def _add_tab_close_button(self, widget, index):
-        css = komodo_stylesheet()
+        """The `.tab-close-button` glyph; KomodoTabBar places it."""
+        bar = self.tabs.tabBar()
         close = QToolButton()
         close.setObjectName("tab-close-button")
-        close.setIcon(icons.glyph(
-            icons.css_glyph(css.value(".tab-close-button:before", "content")),
-            int(css.value(".tab-close-button", "font-size", "16px").rstrip("px")),
-            QColor(css.value(".tab-close-button:before", "color")),
-        ))
+        close.setIcon(bar.close_icon)
+        close.setIconSize(QSize(CLOSE_SIZE, CLOSE_SIZE))
+        close.setFixedSize(CLOSE_SIZE, CLOSE_SIZE)
+        close.setStyleSheet("QToolButton { border: 0; padding: 0; margin: 0; background: transparent; }")
         close.setToolTip("Close")
         close.clicked.connect(lambda _c=False, w=widget: self._close_tab(self.tabs.indexOf(w)))
-        self.tabs.tabBar().setTabButton(index, QTabBar.ButtonPosition.RightSide, close)
+        bar.setTabButton(index, QTabBar.ButtonPosition.RightSide, close)
 
     def open_quickstart(self):
         """cmd_newTab (ko.open.quickStart): the "New Tab" view."""

@@ -10,8 +10,10 @@ Widgets opt into Komodo-specific rules via objectName, named after the XUL
 element id they stand in for (e.g. "tabbed-view" for the editor tab bar).
 """
 import re
+import subprocess
 
-from PySide6.QtGui import QColor, QFontMetrics, QPalette
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPalette
+from PySide6.QtWidgets import QApplication
 
 from qtedit.skin.css import komodo_stylesheet, load_colors
 
@@ -156,6 +158,7 @@ QMenuBar {{
     background: {menubar_bg};
     color: {c["foreground-special"]};
     padding: 0;
+    spacing: 0;  /* XUL menus sit edge to edge, only their own padding */
 }}
 QMenuBar::item {{
     background: transparent;
@@ -405,6 +408,50 @@ def build_palette():
     return palette
 
 
+def _fc_lines(*args):
+    try:
+        out = subprocess.run(["fc-list" if args[0] != "match" else "fc-match", *args[1:]],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [line for line in out.splitlines() if line.strip()]
+
+
+def gecko_ui_font(font):
+    """The UI font Komodo actually gets for the desktop font. Its Gecko
+    (2015, before variable font support arrived in Firefox 62) can't use a
+    family that only ships as variable font files, such as Ubuntu Sans on
+    Ubuntu 24.04+, and falls back to fontconfig's sans-serif: measured
+    against a Komodo 12.10 screenshot, its menu and tab labels are Noto
+    Sans, not Ubuntu Sans."""
+    family = font.family()
+    files = set(_fc_lines("list", "--format", "%{file}\n", f":family={family}"))
+    variable = set(_fc_lines("list", "--format", "%{file}\n", f":family={family}:variable=true"))
+    result = QFont(font)
+    # Pixel-compared with the screenshot, Komodo's labels are fully hinted
+    # (integer glyph advances); Qt's default leaves them fractional and
+    # ~2% wider.
+    result.setHintingPreference(QFont.HintingPreference.PreferFullHinting)
+    if not files or not files <= variable:
+        return result
+    fallback = _fc_lines("match", "--format", "%{family[0]}\n", "sans-serif:variable=false")
+    if fallback:
+        # setFamilies, not setFamily: a copied font's families() list wins.
+        result.setFamilies([fallback[0]])
+    return result
+
+
+# Classes the platform theme gives fonts of their own
+# (QApplicationPrivate::initializeWidgetFontHash); those win over the app
+# font, so each gets the UI font too.
+_THEMED_FONT_CLASSES = (
+    "QMenu", "QMenuBar", "QMenuItem", "QMessageBox", "QLabel", "QTipLabel", "QStatusBar",
+    "QMdiSubWindowTitleBar", "QDockWidgetTitle", "QPushButton", "QCheckBox", "QRadioButton",
+    "QToolButton", "QAbstractItemView", "QListView", "QHeaderView", "QComboMenuItem",
+    "QComboLineEditFont", "QLineEdit", "QComboBox",
+)
+
+
 def apply(app):
     """Style a QApplication like Komodo. Uses the app font as 1rem, the
     same way Gecko resolves Komodo's `font: message-box` root font."""
@@ -412,7 +459,16 @@ def apply(app):
     # start from Qt's neutral Fusion style rather than the desktop theme.
     app.setStyle("Fusion")
     app.setPalette(build_palette())
+    ui_font = gecko_ui_font(app.font())
+    app.setFont(ui_font)
     rem_px = app.font().pixelSize()
     if rem_px <= 0:
         rem_px = app.font().pointSizeF() * app.primaryScreen().logicalDotsPerInch() / 72
     app.setStyleSheet(build_qss(rem_px, QFontMetrics(app.font()).height()))
+    # After setStyleSheet(), which resets the per-class font table.
+    for class_name in _THEMED_FONT_CLASSES:
+        font = QFont(ui_font)
+        themed_size = QApplication.font(class_name).pointSizeF()
+        if themed_size > 0:
+            font.setPointSizeF(themed_size)
+        QApplication.setFont(font, class_name)
